@@ -108,6 +108,7 @@ export default class Scene {
       u_blackHoleMass:   { value: 1.0 },          // M (natural units)
       u_Rs:              { value: bh.Rs },         // Schwarzschild radiusi
       u_spin:            { value: bh.spin },       // Kerr spin a/M
+      u_charge:          { value: bh.charge },     // Reissner/Newman zaryad Q
       u_rPhotonSphere:   { value: bh.rPhotonSphere },
       u_rISCO:           { value: bh.rISCO },
       u_rOuterHorizon:   { value: bh.rOuterHorizon },
@@ -242,10 +243,13 @@ export default class Scene {
   updateBlackHoleParams(params) {
     const bh = this._config.blackHole;
 
-    if (params.spin !== undefined) {
-      bh.spin = params.spin;
-      // Spin o'zgarganda bog'liq qiymatlarni qayta hisoblash
+    if (params.spin !== undefined || params.charge !== undefined) {
+      if (params.spin !== undefined) bh.spin = params.spin;
+      if (params.charge !== undefined) bh.charge = params.charge;
+      
+      // Spin yoki Zaryad o'zgarganda bog'liq qiymatlarni qayta hisoblash
       this._uniforms.u_spin.value = bh.spin;
+      this._uniforms.u_charge.value = bh.charge;
       this._uniforms.u_rPhotonSphere.value = bh.rPhotonSphere;
       this._uniforms.u_rISCO.value = bh.rISCO;
       this._uniforms.u_rOuterHorizon.value = bh.rOuterHorizon;

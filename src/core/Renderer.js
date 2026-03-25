@@ -501,14 +501,34 @@ export default class Renderer {
 
   /** GPU ma'lumotlari */
   get gpuInfo() {
-    const gl = this._renderer.getContext();
-    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-    return {
-      vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
-      renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
-      maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
-      maxVaryings: gl.getParameter(gl.MAX_VARYING_VECTORS),
-    };
+    try {
+      if (this._renderer.isWebGPURenderer) {
+        return {
+          vendor: 'WebGPU',
+          renderer: 'WebGPU API',
+          maxTextureSize: 'N/A',
+          maxVaryings: 'N/A',
+        };
+      }
+      
+      const gl = this._renderer.getContext();
+      if (!gl) return { vendor: 'Unknown', renderer: 'Unknown', maxTextureSize: 'Unknown', maxVaryings: 'Unknown' };
+      
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      return {
+        vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
+        renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
+        maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+        maxVaryings: gl.getParameter(gl.MAX_VARYING_VECTORS),
+      };
+    } catch (e) {
+      return {
+        vendor: 'WebGPU/Unknown',
+        renderer: 'WebGPU/Unknown',
+        maxTextureSize: 'Unknown',
+        maxVaryings: 'Unknown',
+      };
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -57,6 +57,8 @@ const PhysicsConfig = {
     G: 1.0,
     c: 1.0,
     M: 1.0,
+    hbar: 1.054571817e-34,  // Real Planck constant over 2pi
+    k_B: 1.380649e-23,      // Real Boltzmann constant
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -82,9 +84,11 @@ const PhysicsConfig = {
     // Simulyatsiyada: 0.998 (barqaror render uchun)
     //
     // spin=0     → Schwarzschild (aylanmaydigan)
-    // spin=0.998 → Gargantua (deyarli maksimal)
+    // ────────────────────────────────────────────
+    // Formula #3, #4, #5: Kerr-Newman Charge & Spin
     // ────────────────────────────────────────────
     spin: 0.998,
+    charge: 0.0, // Q (natural units)
 
     // a parametri (computed)
     // a = spin * M, natural units'da M=1
@@ -92,28 +96,26 @@ const PhysicsConfig = {
       return this.spin * 1.0;
     },
 
-    // ────────────────────────────────────────────
-    // Formula #4: Kerr yordamchi — gorizontlar
-    // r± = M ± √(M² - a²)
-    // ────────────────────────────────────────────
+    // ── Formula #3, #4, #5: Horizonlar (Kerr-Newman) ──
+    // r± = M ± √(M² - a² - Q²)
     get rOuterHorizon() {
-      const a = this.a;
-      return 1.0 + Math.sqrt(1.0 - a * a);
+      const a = this.a; const Q = this.charge;
+      const desc = 1.0 - a*a - Q*Q;
+      return desc >= 0 ? 1.0 + Math.sqrt(desc) : 0.0; // Naked singularity check
     },
     get rInnerHorizon() {
-      const a = this.a;
-      return 1.0 - Math.sqrt(1.0 - a * a);
+      const a = this.a; const Q = this.charge;
+      const desc = 1.0 - a*a - Q*Q;
+      return desc >= 0 ? 1.0 - Math.sqrt(desc) : 0.0;
     },
 
-    // ────────────────────────────────────────────
-    // Formula #4: Ergosfera radiusi
-    // r_ergo = M + √(M² - a²cos²θ)
-    // Ekvatorial tekislikda (θ=π/2): r_ergo = 2M
-    // ────────────────────────────────────────────
+    // ── Formula #4: Ergosfera radiusi (Kerr-Newman) ──
+    // r_ergo = M + √(M² - a²cos²θ - Q²)
     rErgosphere(theta) {
-      const a = this.a;
+      const a = this.a; const Q = this.charge;
       const cosTheta = Math.cos(theta);
-      return 1.0 + Math.sqrt(1.0 - a * a * cosTheta * cosTheta);
+      const desc = 1.0 - a*a*cosTheta*cosTheta - Q*Q;
+      return desc >= 0 ? 1.0 + Math.sqrt(desc) : 0.0;
     },
 
     // ────────────────────────────────────────────
@@ -169,6 +171,42 @@ const PhysicsConfig = {
     effectivePotential(r, L) {
       const M = 1.0;
       return -M / r + (L * L) / (2.0 * r * r) - (M * L * L) / (r * r * r);
+    },
+
+    // ────────────────────────────────────────────
+    // Formula #6: Termodinamika & Kvant (HUD Display uchun real va natural)
+    // ────────────────────────────────────────────
+    get surfaceGravityKappa() {
+      // κ = (r+ - r-) / (2(r+² + a²))   (Kerr-Newman uchun natural units)
+      const rp = this.rOuterHorizon;
+      const rm = this.rInnerHorizon;
+      const a = this.a;
+      if (rp <= 0) return 0.0; // Naked singularity yechimi yo'q
+      return (rp - rm) / (2.0 * (rp * rp + a * a));
+    },
+    
+    get hawkingTemperature() {
+      // T_H = ħ κ / (2π k_B)
+      // HUD UI da K/M birligida chiroyli ko'rsatish uchun nisbiy o'lchov
+      return (1.227e23 / this.massSolar) * this.surfaceGravityKappa; 
+    },
+    
+    get entropyBekenstein() {
+      // S = (k_B c³ / 4Għ) * Area
+      // Area = 4π(r+² + a²)
+      const rp = this.rOuterHorizon;
+      const a = this.a;
+      return 4.0 * Math.PI * (rp * rp + a * a) * this.massSolar * this.massSolar; // mutanosib
+    },
+    
+    get evaporationTime() {
+      // t_ev = (5120 π G² M³) / (ħ c⁴)
+      return this.massSolar * this.massSolar * this.massSolar * 2e67; // yillar approximatsiyasi
+    },
+    
+    get hawkingPower() {
+      // P = (ħ c⁶) / (15360 π G² M²)
+      return 1.0 / (this.massSolar * this.massSolar); // mutanosib
     },
   },
 
@@ -284,7 +322,7 @@ const PhysicsConfig = {
     // ── Formulalar #6, #7, #8, #9 — geodezik integrallash ──
 
     // Har bir piksel (nur) uchun maksimum bosqichlar
-    maxSteps: 300,
+    maxSteps: 200,
 
     // Qadam kattaligi
     stepSize: 0.05,
@@ -298,7 +336,7 @@ const PhysicsConfig = {
     // ── Integratsiya usuli ──
     // 'verlet' — Formula #8: tezroq, GPU uchun ideal
     // 'rk4'    — Formula #9: aniqroq, sifat muhim bo'lganda
-    integrationMethod: 'rk4',
+    integrationMethod: 'verlet',
 
     // Tugatish shartlari
     escapeRadius: 50.0,      // Nur uzoqlashdi — fon yulduzlarini ko'rsat
@@ -335,6 +373,20 @@ const PhysicsConfig = {
     // Foton halqasi yorqinligi
     photonRingIntensity: 2.0,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // VIII. ASTROFIZIK VA KVANT QO'SHIMCHALAR (HUD uchun yordamchilar)
+  // ─────────────────────────────────────────────────────────────────────────
+  astrophysics: {
+    // Bondi Akkretatsiya ko'rsatkichi (nisbiy mass-loss rate formula #10 asosida)
+    get bondiAccretionRate() {
+      return 4.0 * Math.PI * Math.pow(PhysicsConfig.SI.G * PhysicsConfig.SI.M_sun, 2) / Math.pow(1e5, 3);
+    },
+    
+    // Planck Mass/Length formula constants
+    planckMass: Math.sqrt((1.054e-34 * 3e8) / 6.674e-11),
+    planckLength: Math.sqrt((1.054e-34 * 6.674e-11) / Math.pow(3e8, 3)),
+  }
 };
 
 // Asosiy ob'ektlarni muzlatish — runtime o'zgarishlardan himoya

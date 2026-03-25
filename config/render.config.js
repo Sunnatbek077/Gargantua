@@ -115,10 +115,10 @@ const RenderConfig = {
     low: {
       label: 'Tez (720p)',
       resolution: 0.5,       // Ekranning yarmi
-      rayMarchSteps: 150,    // Kamroq qadam
+      rayMarchSteps: 100,    // Kamroq qadam
       bloomPasses: 3,        // Kamroq blur
       bloomScale: 0.25,      // Kichikroq blur buffer
-      noiseOctaves: 3,       // Kamroq detail
+      noiseOctaves: 2,       // Kamroq detail
       adaptiveStep: false,   // Oddiy fixed step
       chromaticAberration: false,
       filmGrain: false,
@@ -128,10 +128,10 @@ const RenderConfig = {
     medium: {
       label: 'Muvozanat (1080p)',
       resolution: 0.75,
-      rayMarchSteps: 250,
+      rayMarchSteps: 150,
       bloomPasses: 4,
       bloomScale: 0.5,
-      noiseOctaves: 5,
+      noiseOctaves: 3,
       adaptiveStep: true,
       chromaticAberration: true,
       filmGrain: true,
@@ -141,10 +141,10 @@ const RenderConfig = {
     high: {
       label: 'Sifatli (native)',
       resolution: 1.0,
-      rayMarchSteps: 300,
+      rayMarchSteps: 200,
       bloomPasses: 5,
       bloomScale: 0.5,
-      noiseOctaves: 6,
+      noiseOctaves: 4,
       adaptiveStep: true,
       chromaticAberration: true,
       filmGrain: true,

@@ -44,6 +44,7 @@ uniform float u_aspectRatio;
 uniform float u_blackHoleMass;
 uniform float u_Rs;
 uniform float u_spin;
+uniform float u_charge;
 uniform float u_rPhotonSphere;
 uniform float u_rISCO;
 uniform float u_rOuterHorizon;
@@ -326,7 +327,7 @@ float photonRingGlow(float closest, float rPh) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Formula #36: Luminance ──
-float luminance(vec3 c) {
+float calcLuminance(vec3 c) {
   return dot(c, vec3(0.2126, 0.7152, 0.0722));
 }
 
@@ -392,10 +393,10 @@ vec3 gravitationalAcceleration(vec3 pos, float Rs) {
   return normalize(pos) * accelMag * grCorrection;
 }
 
-// ── Kerr metriki uchun gravitatsion tezlanish (#2, #4) ──
-// Spin ta'sirini hisobga oluvchi korreksiya
-vec3 kerrAcceleration(vec3 pos, float Rs, float spin) {
-  if (abs(spin) < 0.001) {
+// ── Kerr-Newman metriki uchun gravitatsion tezlanish (#2, #3, #4, #5) ──
+// Spin + Zaryad ta'sirini hisobga oluvchi korreksiya
+vec3 kerrNewmanAcceleration(vec3 pos, float Rs, float spin, float charge) {
+  if (abs(spin) < 0.001 && abs(charge) < 0.001) {
     return gravitationalAcceleration(pos, Rs);
   }
 
@@ -404,22 +405,31 @@ vec3 kerrAcceleration(vec3 pos, float Rs, float spin) {
 
   float M = Rs * 0.5;
   float a = spin * M;  // Kerr parametri
+  float Q = charge;    // Zaryad parametri
 
-  // ── Formula #4: Σ va Δ ──
+  // ── Formula #4, #5: Σ va Δ ──
   float cosTheta = pos.y / r;
   float sinTheta2 = 1.0 - cosTheta * cosTheta;
   float sigma = r * r + a * a * cosTheta * cosTheta;
-  // float delta = r * r - Rs * r + a * a;
-
-  // Kerr: asosiy Schwarzschild + frame-dragging korreksiya
+  
+  // Asosiy Schwarzschild tezlanishi
   vec3 accel = gravitationalAcceleration(pos, Rs);
 
+  // Electrostatik repulsiya (Reissner-Nordström qismi)
+  // Coulomb kuchi nurlarga (Q^2 / r^3) shaklida qarama-qarshi kuch beradi
+  if (abs(Q) > 0.001) {
+    vec3 repulsion = pos * (Q * Q) / (r * r * r * r); // soddalashtirilgan repel
+    accel += repulsion;
+  }
+
   // Frame-dragging — spin ta'sirida fazovaqt "tortiladi"
-  // φ yo'nalishda qo'shimcha tezlanish
-  // Bu disk aylanishi yo'nalishida (y o'qi atrofida)
-  vec3 frameDrag = vec3(-pos.z, 0.0, pos.x); // tangensial yo'nalish
-  float dragMag = 2.0 * a * M / (sigma * r);
-  accel += normalize(frameDrag) * dragMag * 0.1;
+  if (abs(a) > 0.001) {
+    // φ yo'nalishda qo'shimcha tezlanish disk aylanishi yo'nalishida (y o'qi atrofida)
+    vec3 frameDrag = vec3(-pos.z, 0.0, pos.x); 
+    // Zaryad Q ham frame-dragging ga ta'sir qiladi
+    float dragMag = a * (2.0 * M * r - Q * Q) / (sigma * r * r);
+    accel += normalize(frameDrag) * dragMag * 0.1;
+  }
 
   return accel;
 }
@@ -488,8 +498,8 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
 
     // ── Gravitatsion tezlanish ──
     vec3 accel;
-    if (abs(u_spin) > 0.001) {
-      accel = kerrAcceleration(rayPos, Rs, u_spin);
+    if (abs(u_spin) > 0.001 || abs(u_charge) > 0.001) {
+      accel = kerrNewmanAcceleration(rayPos, Rs, u_spin, u_charge);
     } else {
       accel = gravitationalAcceleration(rayPos, Rs);
     }
@@ -502,24 +512,24 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
 
       vec3 midPos1 = rayPos + k1x * 0.5;
       vec3 midDir1 = rayDir + k1v * 0.5;
-      vec3 a2 = (abs(u_spin) > 0.001)
-        ? kerrAcceleration(midPos1, Rs, u_spin)
+      vec3 a2 = (abs(u_spin) > 0.001 || abs(u_charge) > 0.001)
+        ? kerrNewmanAcceleration(midPos1, Rs, u_spin, u_charge)
         : gravitationalAcceleration(midPos1, Rs);
       vec3 k2v = a2 * stepSize;
       vec3 k2x = midDir1 * stepSize;
 
       vec3 midPos2 = rayPos + k2x * 0.5;
       vec3 midDir2 = rayDir + k2v * 0.5;
-      vec3 a3 = (abs(u_spin) > 0.001)
-        ? kerrAcceleration(midPos2, Rs, u_spin)
+      vec3 a3 = (abs(u_spin) > 0.001 || abs(u_charge) > 0.001)
+        ? kerrNewmanAcceleration(midPos2, Rs, u_spin, u_charge)
         : gravitationalAcceleration(midPos2, Rs);
       vec3 k3v = a3 * stepSize;
       vec3 k3x = midDir2 * stepSize;
 
       vec3 endPos = rayPos + k3x;
       vec3 endDir = rayDir + k3v;
-      vec3 a4 = (abs(u_spin) > 0.001)
-        ? kerrAcceleration(endPos, Rs, u_spin)
+      vec3 a4 = (abs(u_spin) > 0.001 || abs(u_charge) > 0.001)
+        ? kerrNewmanAcceleration(endPos, Rs, u_spin, u_charge)
         : gravitationalAcceleration(endPos, Rs);
       vec3 k4v = a4 * stepSize;
       vec3 k4x = endDir * stepSize;
@@ -643,7 +653,7 @@ void main() {
 
   // 5. Film grain (Formula #29)
   float grain = filmGrain(vUv, u_time);
-  float lum = luminance(color);
+  float lum = calcLuminance(color);
   // Qorong'i joylarda ko'proq, yorqinda kam
   float grainResponse = mix(1.0, 0.3, smoothstep(0.0, 0.5, lum));
   color += grain * grainResponse;

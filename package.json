@@ -1,0 +1,28 @@
+{
+  "name": "gargantua",
+  "version": "1.0.0",
+  "description": "Interstellar-style black hole visualization — real-time ray marching with Three.js and GLSL",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  },
+  "author": "Sunnatbek",
+  "license": "MIT",
+  "keywords": [
+    "black-hole",
+    "three.js",
+    "webgl",
+    "ray-marching",
+    "gravitational-lensing",
+    "interstellar",
+    "physics-simulation"
+  ]
+}
