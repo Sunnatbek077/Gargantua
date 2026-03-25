@@ -1,154 +1,150 @@
-Here is your project rewritten cleanly in English while keeping the same structure and meaning:
+# 🌀 GARGANTUA
 
-⸻
+**Interstellar** filmidagi Gargantua qora tuynugining real-time WebGL simulyatsiyasi.
 
-🌀 GARGANTUA
+Gravitatsion linzalash, Doppler effekti, accretion disk fizikasi — barchasi brauzerda.
 
-A real-time WebGL simulation of the Gargantua black hole from Interstellar.
+![Three.js](https://img.shields.io/badge/Three.js-r170-orange?logo=three.js)
+![WebGL](https://img.shields.io/badge/WebGL-2.0-green?logo=webgl)
+![Vite](https://img.shields.io/badge/Vite-6-purple?logo=vite)
 
-Gravitational lensing, Doppler effects, and accretion disk physics — all rendered directly in the browser.
+---
 
+## 🚀 Ishga tushirish
 
-⸻
-
-🚀 Getting Started
-
-# Install dependencies
+```bash
+# Bog'liqliklarni o'rnatish
 npm install
 
-# Start development server
+# Development server
 npm run dev
 
-# Build for production
+# Production build
 npm run build
 
-# Preview production build
+# Build preview
 npm run preview
+```
 
+---
 
-⸻
+## 🏗️ Arxitektura
 
-🏗️ Architecture
-
+```
 Gargantua/
-├── config/                  # Configuration files
-│   ├── camera.config.js     #   Camera presets, orbit settings
+├── config/                  # Konfiguratsiya fayllari
+│   ├── camera.config.js     #   Kamera presetlari, orbita sozlamalari
 │   ├── physics.config.js    #   Schwarzschild, Kerr, accretion disk
-│   ├── postfx.config.js     #   Bloom, HDR, film grain parameters
-│   └── render.config.js     #   Renderer, quality levels, tone mapping
+│   ├── postfx.config.js     #   Bloom, HDR, film grain parametrlari
+│   └── render.config.js     #   Renderer, sifat darajalari, tone mapping
 │
 ├── src/
-│   ├── main.js              # Entry point — initializes the app
+│   ├── main.js              # Entry point — ilovani ishga tushirish
 │   │
-│   ├── core/                # Core modules
-│   │   ├── App.js           #   Main application — integrates all modules
-│   │   ├── Camera.js        #   Camera control, presets, cinematic paths
-│   │   ├── Clock.js         #   Time management, delta, FPS, time dilation
-│   │   ├── Renderer.js      #   WebGL render pipeline, HDR, adaptive quality
-│   │   └── Scene.js         #   Full-screen quad, shader uniforms
+│   ├── core/                # Yadro modullari
+│   │   ├── App.js           #   Asosiy ilova — barcha modullarni birlashtiradi
+│   │   ├── Camera.js        #   Kamera boshqaruvi, presetlar, kinematik yo'llar
+│   │   ├── Clock.js         #   Vaqt boshqaruvi, delta, FPS, time dilation
+│   │   ├── Renderer.js      #   WebGL render pipeline, HDR, adaptiv sifat
+│   │   └── Scene.js         #   Full-screen quad, shader uniform'lar
 │   │
-│   ├── shaders/             # GLSL shader files
-│   │   ├── blackhole.vert   #   Vertex shader — screen quad
+│   ├── shaders/             # GLSL shader fayllari
+│   │   ├── blackhole.vert   #   Vertex shader — ekran quad
 │   │   ├── blackhole.frag   #   Fragment shader — ray marching
-│   │   ├── accretion.glsl   #   Accretion disk calculations
-│   │   ├── doppler.glsl     #   Doppler shift and beaming
-│   │   ├── lensing.glsl     #   Gravitational lensing
-│   │   ├── noise.glsl       #   Procedural noise functions
-│   │   └── tonemap.glsl     #   ACES tone mapping and gamma correction
+│   │   ├── accretion.glsl   #   Accretion disk hisoblash
+│   │   ├── doppler.glsl     #   Doppler sur'ish va beaming
+│   │   ├── lensing.glsl     #   Gravitatsion linzalash
+│   │   ├── noise.glsl       #   Procedural noise funksiyalari
+│   │   └── tonemap.glsl     #   ACES tone mapping va gamma
 │   │
-│   ├── physics/             # CPU-based physics calculations
-│   │   ├── Schwarzschild.js #   Schwarzschild metric
-│   │   ├── KerrMetric.js    #   Kerr metric (rotating black hole)
-│   │   ├── Geodesic.js      #   Geodesic paths
-│   │   ├── DopplerBeaming.js#   Doppler beaming calculations
-│   │   └── GravitationalRedshift.js  # Gravitational redshift
+│   ├── physics/             # Fizika hisoblashlar (CPU)
+│   │   ├── Schwarzschild.js #   Schwarzschild metriki
+│   │   ├── KerrMetric.js    #   Kerr metriki (aylanuvchi qora tuynuk)
+│   │   ├── Geodesic.js      #   Geodezik chiziqlari
+│   │   ├── DopplerBeaming.js#   Doppler beaming hisoblash
+│   │   └── GravitationalRedshift.js  # Gravitatsion qizil siljish
 │   │
-│   ├── objects/             # 3D objects
-│   │   ├── BlackHole.js     #   Black hole
+│   ├── objects/             # 3D obyektlar
+│   │   ├── BlackHole.js     #   Qora tuynuk
 │   │   ├── AccretionDisk.js #   Accretion disk
-│   │   ├── PhotonRing.js    #   Photon ring
-│   │   ├── JetStream.js     #   Jet streams
-│   │   └── Starfield.js     #   Star background
+│   │   ├── PhotonRing.js    #   Foton halqa
+│   │   ├── JetStream.js     #   Jet oqimlari
+│   │   └── Starfield.js     #   Yulduzli fon
 │   │
-│   ├── postprocessing/      # Post-processing effects
-│   │   ├── BloomPass.js     #   Bloom effect
+│   ├── postprocessing/      # Post-processing effektlar
+│   │   ├── BloomPass.js     #   Bloom efekti
 │   │   ├── HDRPipeline.js   #   HDR pipeline
-│   │   ├── ChromaticAberration.js  # Chromatic aberration
+│   │   ├── ChromaticAberration.js  # Xromatik aberratsiya
 │   │   ├── FilmGrain.js     #   Film grain
-│   │   ├── LensFlare.js     #   Lens flare
-│   │   └── MotionBlur.js    #   Motion blur
+│   │   ├── LensFlare.js     #   Linza porlashi
+│   │   └── MotionBlur.js    #   Harakat xiraligi
 │   │
-│   ├── controls/            # User controls
-│   │   ├── OrbitControls.js #   Mouse orbit controls
+│   ├── controls/            # Foydalanuvchi boshqaruvi
+│   │   ├── OrbitControls.js #   Orbita boshqaruvi (sichqoncha)
 │   │   ├── ParameterPanel.js#   GUI panel
-│   │   ├── KeyboardShortcuts.js  # Keyboard shortcuts
-│   │   └── CameraPath.js    #   Cinematic camera paths
+│   │   ├── KeyboardShortcuts.js  # Klaviatura qisqa yo'llari
+│   │   └── CameraPath.js   #   Kinematografik kamera yo'llari
 │   │
-│   └── utils/               # Utility modules
-│       ├── ShaderLoader.js  #   Load GLSL files
-│       ├── TextureLoader.js #   Texture management
-│       ├── MathUtils.js     #   Math utilities
-│       ├── PerformanceMonitor.js  # FPS and GPU monitoring
-│       └── Exporter.js      #   Screenshot and video export
+│   └── utils/               # Yordamchi modullar
+│       ├── ShaderLoader.js  #   GLSL fayllarni yuklash
+│       ├── TextureLoader.js #   Texture boshqaruvi
+│       ├── MathUtils.js     #   Matematik funksiyalar
+│       ├── PerformanceMonitor.js  # FPS va GPU monitoring
+│       └── Exporter.js      #   Screenshot va video eksport
 │
 ├── public/
-│   └── index.html           # HTML — canvas and loading screen
+│   └── index.html           # HTML — canvas va loading ekran
 │
 ├── package.json
 ├── vite.config.js
 └── README.md
+```
 
+---
 
-⸻
+## 🎮 Boshqaruv
 
-🎮 Controls
+| Tugma | Vazifa |
+|-------|--------|
+| Sichqoncha suring | Kamera aylanishi |
+| Scroll | Yaqinlashtirish / uzoqlashtirish |
+| `1`-`6` | Kamera presetlari |
+| `Space` | Pauza / davom |
+| `S` | Screenshot |
+| `R` | Video yozish |
+| `Q` | Sifat o'zgartirish |
 
-Key	Action
-Mouse drag	Rotate camera
-Scroll	Zoom in / out
-1–6	Camera presets
-Space	Pause / resume
-S	Take screenshot
-R	Record video
-Q	Change quality
+---
 
+## ⚙️ Sifat darajalari
 
-⸻
+| Daraja | Qadam | Bloom | Resolution |
+|--------|-------|-------|------------|
+| **Low** | 150 | 3 pass | 50% |
+| **Medium** | 250 | 4 pass | 75% |
+| **High** | 300 | 5 pass | 100% |
+| **Ultra** | 500 | 6 pass | 150% |
 
-⚙️ Quality Levels
+---
 
-Level	Steps	Bloom	Resolution
-Low	150	3 passes	50%
-Medium	250	4 passes	75%
-High	300	5 passes	100%
-Ultra	500	6 passes	150%
+## 📐 Fizika formulalari
 
+- **Schwarzschild radiusi**: `Rs = 2GM/c²`
+- **Kerr metriki**: Aylanuvchi qora tuynuk uchun fazovaqt
+- **Geodezik tenglamalar**: Nurning egri yo'li
+- **Doppler effekti**: Rang va yorqinlik o'zgarishi
+- **ACES tone mapping**: HDR → SDR konvertatsiya
 
-⸻
+---
 
-📐 Physics Formulas
-	•	Schwarzschild radius: Rs = 2GM/c²
-	•	Kerr metric: Spacetime of a rotating black hole
-	•	Geodesic equations: Curved paths of light
-	•	Doppler effect: Color and brightness shift
-	•	ACES tone mapping: HDR → SDR conversion
+## 🛠️ Texnologiyalar
 
-⸻
+- **[Three.js](https://threejs.org/)** — WebGL render engine
+- **GLSL** — GPU shader dasturlash
+- **[Vite](https://vitejs.dev/)** — Build tool va dev server
 
-🛠️ Technologies
-	•	Three.js — WebGL rendering engine
-	•	GLSL — GPU shader programming
-	•	Vite — Build tool and development server
+---
 
-⸻
-
-📄 License
+## 📄 Litsenziya
 
 MIT
-
-⸻
-
-If you want, I can also:
-	•	make it more “GitHub viral” (polished README with badges, GIFs, demo section)
-	•	add a live demo section (Netlify/Vercel)
-	•	or rewrite it in a more “scientific / academic” style
