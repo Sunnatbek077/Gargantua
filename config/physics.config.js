@@ -265,19 +265,19 @@ const PhysicsConfig = {
 
     // Disk rang xaritasi (temperaturaga bog'liq)
     colorMap: {
-      hot:  [1.0, 0.95, 0.88],    // T_max yaqini — deyarli oq
-      warm: [1.0, 0.55, 0.15],    // O'rta — oltin-to'q sariq
-      cool: [0.75, 0.15, 0.02],   // Tashqi — chuqur qizil
+      hot:  [1.0, 1.0, 0.97],     // T_max yaqini — sof oq (Interstellar)
+      warm: [1.0, 0.92, 0.78],    // O'rta — iliq oltin
+      cool: [0.95, 0.75, 0.55],   // Tashqi — yumshoq oltin-jigarrang
     },
 
     // ── Formula #31, #32: Noise parametrlari ──
     // Procedural texture — disk spirallari va tuzilmasi
     noise: {
-      scale: 3.0,            // Asosiy chastota
+      scale: 1.5,            // Interstellar: silliqroq tuzilma
       lacunarity: 2.0,       // Har oktavada chastota ko'payishi
-      octaves: 6,            // FBM qatlamlari soni
-      persistence: 0.5,      // Har oktavada amplituda kamayishi
-      timeScale: 0.15,       // Vaqt bo'yicha o'zgarish tezligi
+      octaves: 3,            // Kamroq detail — silliqroq disk
+      persistence: 0.3,      // Kamroq kontrast — yumshoqroq
+      timeScale: 0.1,        // Sekinroq o'zgarish
     },
 
     // Vizual aylanish tezligi
@@ -294,10 +294,9 @@ const PhysicsConfig = {
     enabled: true,
 
     // ── Formula #23: Doppler beaming ──
-    // I_obs = g^exponent · I_emit
-    // exponent=4 termal nurlanish uchun
-    // exponent=3+α sinxrotron nurlanish uchun
-    beamingExponent: 4.0,
+    // Interstellar filmida Kip Thorne Doppler'ni ataylab pasaytirgan
+    // Kinematografik jihatdan oq-oltin disk yaxshiroq ko'rinadi
+    beamingExponent: 2.0,
 
     // ── Formula #24: Gravitatsion qizil siljish ──
     // z_grav = 1/√(1 - Rs/r) - 1
@@ -307,11 +306,11 @@ const PhysicsConfig = {
     // ν_obs/ν_emit = g · √(1-Rs/r_emit) / √(1-Rs/r_obs)
     combinedShift: true,
 
-    // Vizual tuning — rang siljish kuchi
-    colorShiftStrength: 1.0,
+    // Vizual tuning — rang siljish kuchi (Interstellar: ~0.15)
+    colorShiftStrength: 0.15,
 
-    // Yorqinlik kuchayish faktori
-    brightnessBoost: 1.5,
+    // Yorqinlik kuchayish faktori (Interstellar: ~1.0)
+    brightnessBoost: 1.0,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -322,7 +321,7 @@ const PhysicsConfig = {
     // ── Formulalar #6, #7, #8, #9 — geodezik integrallash ──
 
     // Har bir piksel (nur) uchun maksimum bosqichlar
-    maxSteps: 200,
+    maxSteps: 300,
 
     // Qadam kattaligi
     stepSize: 0.05,
@@ -340,7 +339,7 @@ const PhysicsConfig = {
 
     // Tugatish shartlari
     escapeRadius: 50.0,      // Nur uzoqlashdi — fon yulduzlarini ko'rsat
-    captureMultiplier: 0.05, // Rs * multiplier = tutish radiusi
+    captureMultiplier: 0.4,  // Rs * multiplier = tutish radiusi (kattaroq = aniqroq shadow)
 
     get captureRadius() {
       return PhysicsConfig.blackHole.Rs * this.captureMultiplier;

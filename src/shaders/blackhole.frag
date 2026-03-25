@@ -183,12 +183,19 @@ float diskOrbitalVelocity(float r, float Rs) {
   return min(1.0 / sqrt(r) / sqrt(1.0 - Rs / r), 0.999);
 }
 
-// ── Formula #20: Qora tana rangi (approksimatsiya) ──
+// ── Formula #20: Qora tana rangi — INTERSTELLAR palitrasi ──
 vec3 blackbodyColor(float t) {
-  if (t < 0.25) return vec3(t / 0.25 * 0.6, t / 0.25 * 0.05, t / 0.25 * 0.01);
-  if (t < 0.5)  { float s = (t - 0.25) / 0.25; return vec3(0.6 + s * 0.4, 0.05 + s * 0.45, 0.01 + s * 0.09); }
-  if (t < 0.75) { float s = (t - 0.5)  / 0.25; return vec3(1.0, 0.5 + s * 0.4, 0.1 + s * 0.5); }
-  float s = (t - 0.75) / 0.25; return vec3(1.0, 0.9 + s * 0.1, 0.6 + s * 0.35);
+  // Interstellar'da disk deyarli oq-oltin, qizil juda kam
+  if (t < 0.3) {
+    float s = t / 0.3;
+    return vec3(s * 0.9, s * 0.65, s * 0.4);         // Qorong'i oltin
+  }
+  if (t < 0.6) {
+    float s = (t - 0.3) / 0.3;
+    return vec3(0.9 + s * 0.1, 0.65 + s * 0.25, 0.4 + s * 0.35);  // Iliq oltin → oq
+  }
+  float s = (t - 0.6) / 0.4;
+  return vec3(1.0, 0.9 + s * 0.1, 0.75 + s * 0.22);  // Oq-oltin
 }
 
 // Disk noise — spiral tuzilma
@@ -233,7 +240,8 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   float fade = smoothstep(0.0, 0.05, radPos) * (1.0 - smoothstep(0.7, 1.0, radPos));
 
   float finalLum = lum * max(nFactor, 0.1) * fade;
-  float hdr = 2.0 + temp * 3.0;
+  // INTERSTELLAR FIX: disk yorqinroq — bloom kuchli bo'ladi
+  float hdr = 3.0 + temp * 5.0;
   color *= finalLum * hdr;
 
   return vec4(color, finalLum * fade);
@@ -312,12 +320,21 @@ vec4 applyDoppler(vec4 diskCol, vec3 hitPt, float hitR) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Foton halqa porlashi ──
+// INTERSTELLAR FIX: normalizatsiya — zoom'da barqaror
 float photonRingGlow(float closest, float rPh) {
-  float d = abs(closest - rPh);
-  float glow = exp(-d * d * 10.0) * u_photonRingIntensity;
-  float ring1 = exp(-d * d * 50.0) * u_photonRingIntensity * 1.5;
-  float d2 = abs(closest - rPh * 1.02);
-  float ring2 = exp(-d2 * d2 * 200.0) * u_photonRingIntensity * 0.5;
+  // Nisbiy masofa: foton sferaga qanchalik yaqin
+  float relDist = abs(closest - rPh) / rPh;
+  
+  // Asosiy glow — keng, yumshoq
+  float glow = exp(-relDist * relDist * 80.0) * u_photonRingIntensity;
+  
+  // Birlamchi halqa — tor, yorqin
+  float ring1 = exp(-relDist * relDist * 400.0) * u_photonRingIntensity * 2.0;
+  
+  // Ikkilamchi halqa — juda tor
+  float relDist2 = abs(closest - rPh * 1.01) / rPh;
+  float ring2 = exp(-relDist2 * relDist2 * 1500.0) * u_photonRingIntensity * 0.8;
+  
   return glow + ring1 + ring2;
 }
 
@@ -344,17 +361,17 @@ vec3 gammaCorrect(vec3 c) {
   return pow(max(c, vec3(0.0)), vec3(1.0 / 2.2));
 }
 
-// Vignette
+// Vignette — INTERSTELLAR: kuchliroq kadr hissi
 float vignette(vec2 uv) {
   vec2 d = abs(uv - 0.5) * 2.0;
   d = pow(d, vec2(0.8));
   float dist = pow(d.x + d.y, 1.0 / 0.8);
-  return 1.0 - smoothstep(0.4, 1.0, dist) * 0.35;
+  return 1.0 - smoothstep(0.3, 1.0, dist) * 0.55;
 }
 
-// ── Formula #29: Film grain ──
+// ── Formula #29: Film grain — INTERSTELLAR: 70mm IMAX ──
 float filmGrain(vec2 uv, float time) {
-  return (fract(sin(dot(uv + fract(time * 0.71), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.06;
+  return (fract(sin(dot(uv + fract(time * 0.71), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.12;
 }
 
 
@@ -386,9 +403,9 @@ vec3 gravitationalAcceleration(vec3 pos, float Rs) {
   float accelMag = -M / r2;
 
   // Relativistik korreksiya — foton sferani to'g'ri beradi
-  // Bu yerda pos × vel = L (burchak impulsi) ishlatilishi kerak,
-  // lekin oddiylashtirish sifatida 1.5*Rs/r faktor qo'shamiz
-  float grCorrection = 1.0 + 1.5 * Rs * Rs / r2;
+  // INTERSTELLAR FIX: 1.5 → 3.0 — nurlar kuchliroq egriladi
+  // Bu disk ustidan va ostidan ham ko'rinishini ta'minlaydi
+  float grCorrection = 1.0 + 3.0 * Rs * Rs / r2;
 
   return normalize(pos) * accelMag * grCorrection;
 }
@@ -548,7 +565,8 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
     float newR = length(rayPos);
 
     // ── Qora tuynukka tushdi ──
-    if (newR < captureR + Rs * 0.5) {
+    // INTERSTELLAR FIX: aniqroq shadow chegara
+    if (newR < captureR + u_rOuterHorizon) {
       result.captured = true;
       result.color = vec3(0.0);
       break;
