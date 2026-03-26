@@ -296,7 +296,7 @@ const PhysicsConfig = {
     // ── Formula #23: Doppler beaming ──
     // Interstellar filmida Kip Thorne Doppler'ni ataylab pasaytirgan
     // Kinematografik jihatdan oq-oltin disk yaxshiroq ko'rinadi
-    beamingExponent: 2.0,
+    beamingExponent: 2.5,
 
     // ── Formula #24: Gravitatsion qizil siljish ──
     // z_grav = 1/√(1 - Rs/r) - 1
@@ -309,8 +309,8 @@ const PhysicsConfig = {
     // Vizual tuning — rang siljish kuchi (Interstellar: ~0.15)
     colorShiftStrength: 0.15,
 
-    // Yorqinlik kuchayish faktori (Interstellar: ~1.0)
-    brightnessBoost: 1.0,
+    // Yorqinlik kuchayish faktori — disk ko'rinishi uchun yetarli
+    brightnessBoost: 1.8,
   },
 
   // ─────────────────────────────────────────────────────────────────────────

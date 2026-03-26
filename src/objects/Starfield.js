@@ -130,7 +130,8 @@ export default class Starfield {
       // Bu haqiqiy yulduz populyatsiyasini aks ettiradi
       const rawBrightness = this._seededRandom(starSeed + 3333);
       const magnitude = Math.pow(rawBrightness, 4.5);  // Kuchli eksponensial
-      const radius = magnitude * 2.0 + 0.15;
+      // INTERSTELLAR: yulduzlar juda mayda — disk yorqinligi bostirib qo'yadi
+      const radius = magnitude * 0.8 + 0.1;
 
       // ── Spektral sinf ──
       const spectral = this._getSpectralClass(starSeed + 5555);
@@ -154,13 +155,13 @@ export default class Starfield {
       ctx.fillStyle = `rgba(${r * 255 | 0},${g * 255 | 0},${b * 255 | 0},${alpha})`;
       ctx.fill();
 
-      // ── Yorqin yulduzlarga glow + diffraction spikes ──
-      if (magnitude > 0.75) {
+      // INTERSTELLAR: glow faqat eng yorqinlarga, kichikroq
+      if (magnitude > 0.85) {
         this._drawStarGlow(ctx, x, y, radius, r, g, b, magnitude);
       }
 
       // ── Eng yorqin yulduzlarga diffraction spikes ──
-      if (magnitude > 0.92) {
+      if (magnitude > 0.95) {
         this._drawDiffractionSpikes(ctx, x, y, radius, r, g, b, magnitude);
       }
     }
@@ -171,9 +172,10 @@ export default class Starfield {
    * @private
    */
   _drawStarGlow(ctx, x, y, radius, r, g, b, magnitude) {
-    const glowRadius = radius * 6;
+    // INTERSTELLAR: kichikroq, xiraroq glow
+    const glowRadius = radius * 3;
     const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
-    const glowAlpha = (magnitude - 0.75) * 1.2;
+    const glowAlpha = (magnitude - 0.85) * 0.8;
 
     gradient.addColorStop(0, `rgba(${r * 255 | 0},${g * 255 | 0},${b * 255 | 0},${glowAlpha * 0.4})`);
     gradient.addColorStop(0.3, `rgba(${r * 255 | 0},${g * 255 | 0},${b * 255 | 0},${glowAlpha * 0.1})`);
@@ -190,8 +192,9 @@ export default class Starfield {
    * @private
    */
   _drawDiffractionSpikes(ctx, x, y, radius, r, g, b, magnitude) {
-    const spikeLength = radius * 12;
-    const spikeAlpha = (magnitude - 0.92) * 3.0;
+    // INTERSTELLAR: kichikroq spike'lar
+    const spikeLength = radius * 6;
+    const spikeAlpha = (magnitude - 0.95) * 2.0;
 
     ctx.strokeStyle = `rgba(${r * 255 | 0},${g * 255 | 0},${b * 255 | 0},${spikeAlpha * 0.15})`;
     ctx.lineWidth = 0.5;

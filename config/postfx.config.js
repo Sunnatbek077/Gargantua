@@ -47,11 +47,11 @@ const PostFXConfig = {
 
     // ── Formula #28: Threshold ──
     // bloom = max(0, luminance - threshold) * intensity
-    // Faqat bu yorqinlikdan yuqori piksellar porlaydi
-    threshold: 0.8,
+    // INTERSTELLAR: pastroq threshold — ko'proq porlash
+    threshold: 0.3,
 
-    // Umumiy bloom kuchi
-    intensity: 1.5,
+    // INTERSTELLAR: kuchliroq bloom — disk atrofida keng glow
+    intensity: 2.5,
 
     // ── Formula #27: Gaussian blur ──
     // Blur radiusi (sigma) va o'tishlar soni
@@ -59,16 +59,16 @@ const PostFXConfig = {
     radius: 0.4,
     passes: 5,               // Blur o'tishlari soni
 
-    // Bloom rang tinting — iliq rang (Interstellar uslubi)
-    tint: [1.0, 0.92, 0.82],
+    // INTERSTELLAR: iliqroq oltin bloom
+    tint: [1.0, 0.88, 0.7],
 
     // Mip chain — turli o'lchamdagi blur
     // Bu katta va kichik yorqinlik doiralarini beradi
     mipLevels: [
-      { scale: 0.5,  weight: 1.0 },   // Katta — yaqin atrofdagi tarqalish
-      { scale: 0.25, weight: 0.8 },   // O'rta
-      { scale: 0.125, weight: 0.6 },  // Kichik — uzoq tarqalish
-      { scale: 0.0625, weight: 0.4 }, // Juda kichik — atmosphere
+      { scale: 0.5,  weight: 1.0 },   // Yaqin glow
+      { scale: 0.25, weight: 1.0 },   // INTERSTELLAR: kuchliroq o'rta
+      { scale: 0.125, weight: 0.8 },  // Keng tarqalish
+      { scale: 0.0625, weight: 0.6 }, // Atmosfera — iliq halo
     ],
 
     // ── Formula #36: Luminance hisoblash ──
@@ -79,8 +79,7 @@ const PostFXConfig = {
     // Anamorfik bloom (filmga xos gorizontal cho'zilish)
     anamorphic: {
       enabled: true,
-      ratio: 2.0,            // Gorizontal/vertikal nisbati
-      // Disk tekisligidagi chiziqli porlash effekti
+      ratio: 3.0,            // INTERSTELLAR: kuchliroq gorizontal cho'zilish
     },
   },
 
@@ -136,10 +135,11 @@ const PostFXConfig = {
     // grain = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453) * intensity
     //
     // Har kadrda uv ga vaqt qo'shiladi — donalar harakat qiladi
-    intensity: 0.06,         // Kuchsiz — seziladi, lekin bezovta qilmaydi
+    // INTERSTELLAR: aniq seziluvchi 70mm IMAX grain
+    intensity: 0.12,
     
-    // Donadorlik o'lchami
-    size: 1.5,
+    // Kattaroq donalar — film pellikasiga xos
+    size: 2.0,
 
     // Vaqt bo'yicha o'zgarish (statik emas, tirik)
     animated: true,
@@ -280,12 +280,11 @@ const PostFXConfig = {
   vignette: {
     enabled: true,
 
-    // Qorayish kuchi
-    intensity: 0.35,
+    // INTERSTELLAR: kuchliroq kinematografik vignette
+    intensity: 0.55,
 
-    // Qorayish boshlanadigan nuqta (markazdan nisbat)
-    // 0.0 = markazdan, 1.0 = faqat burchaklarda
-    smoothness: 0.4,
+    // Qorayish ertaroq boshlanadi
+    smoothness: 0.3,
     roundness: 0.8,
 
     // Rang — sof qora yoki biroz ko'kish
@@ -301,20 +300,19 @@ const PostFXConfig = {
   colorGrading: {
     enabled: true,
 
-    // Kontrast
-    contrast: 1.1,
+    // INTERSTELLAR: biroz yuqoriroq kontrast
+    contrast: 1.15,
 
-    // To'yinganlik (saturation)
-    saturation: 0.9,         // Biroz kamaytirish — filmga xos
+    // INTERSTELLAR: desaturated — filmga xos "ranglar o'chirilgan" hissi
+    saturation: 0.75,
 
-    // Rang temperaturasi (Kelvin)
-    // 6500 = neytral, < 6500 = iliq, > 6500 = sovuq
-    temperature: 5800,       // Biroz iliq — Interstellar uslubi
+    // INTERSTELLAR: iliqroq — oltin tonlar
+    temperature: 5200,
 
-    // Rang soyalari (shadows/midtones/highlights)
-    shadowTint:    [0.02, 0.01, 0.05],   // Juda engil ko'k-binafsha
+    // INTERSTELLAR: ko'kish soyalar, oltin yorqin joylar
+    shadowTint:    [0.01, 0.01, 0.06],   // Sovuq ko'k soyalar
     midtoneTint:   [0.0,  0.0,  0.0],    // Neytral
-    highlightTint: [0.03, 0.02, 0.0],    // Juda engil oltin
+    highlightTint: [0.05, 0.03, 0.0],    // Iliq oltin yorqinlik
   },
 
   // ─────────────────────────────────────────────────────────────────────────

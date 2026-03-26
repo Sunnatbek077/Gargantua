@@ -43,7 +43,8 @@ export default class JetStream {
    * @param {number} [options.intensity=1.0] - Yorqinlik
    */
   constructor(options = {}) {
-    this._visible = options.visible || false;
+    // INTERSTELLAR: jet default O'CHIRILGAN — filmda ko'rsatilmaydi
+    this._visible = options.visible === true ? true : false;
     this._length = options.length || 30;
     this._baseRadius = options.baseRadius || 0.3;
     this._coneAngle = (options.coneAngle || 5) * Math.PI / 180;
