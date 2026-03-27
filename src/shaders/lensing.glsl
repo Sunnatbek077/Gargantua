@@ -214,18 +214,19 @@ float photonRingGlow(
   float photonSphereR,    // Foton sfera radiusi (3M)
   float ringIntensity     // Umumiy yorqinlik kuchi
 ) {
-  // Foton sferaga qanchalik yaqin kelgan?
   float delta = abs(closestApproach - photonSphereR);
+  float relDelta = delta / max(photonSphereR, 0.001);
 
-  // Eksponensial so'nish — foton sferadan uzoqlashganda tez pasayadi
-  float glow = exp(-delta * delta * 10.0) * ringIntensity;
+  // Keng yumshoq tashqi glow (halo)
+  float glow  = exp(-relDelta * relDelta * 60.0)  * ringIntensity;
 
-  // Birlamchi halqa (n=1) — eng yorqin
-  float ring1 = exp(-delta * delta * 50.0) * ringIntensity * 1.5;
+  // Birlamchi ingichka halqa — Interstellar'dagi porlab turuvchi chiziq
+  float ring1 = exp(-relDelta * relDelta * 800.0) * ringIntensity * 5.0;
 
-  // Ikkilamchi halqa (n=2) — xiraroq, ingichka
-  float delta2 = abs(closestApproach - photonSphereR * 1.02);
-  float ring2 = exp(-delta2 * delta2 * 200.0) * ringIntensity * 0.5;
+  // Ikkilamchi sub-ring (nurlar ikki marta aylanib o'tgan)
+  float delta2 = abs(closestApproach - photonSphereR * 1.004);
+  float rel2   = delta2 / max(photonSphereR, 0.001);
+  float ring2  = exp(-rel2 * rel2 * 4000.0) * ringIntensity * 2.0;
 
   return glow + ring1 + ring2;
 }

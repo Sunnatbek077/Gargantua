@@ -219,7 +219,7 @@ const PhysicsConfig = {
     get innerRadius() {
       return PhysicsConfig.blackHole.rISCO;
     },
-    outerRadius: 20.0,
+    outerRadius: 26.0,
 
     // ────────────────────────────────────────────
     // Formula #19: Disk temperaturasi (Shakura-Sunyaev)
@@ -296,7 +296,7 @@ const PhysicsConfig = {
     // ── Formula #23: Doppler beaming ──
     // Interstellar filmida Kip Thorne Doppler'ni ataylab pasaytirgan
     // Kinematografik jihatdan oq-oltin disk yaxshiroq ko'rinadi
-    beamingExponent: 2.5,
+    beamingExponent: 3.0, // Realistik: 4.0, Interstellar: 3.0
 
     // ── Formula #24: Gravitatsion qizil siljish ──
     // z_grav = 1/√(1 - Rs/r) - 1
@@ -307,10 +307,10 @@ const PhysicsConfig = {
     combinedShift: true,
 
     // Vizual tuning — rang siljish kuchi (Interstellar: ~0.15)
-    colorShiftStrength: 0.15,
+    colorShiftStrength: 0.25, 
 
     // Yorqinlik kuchayish faktori — disk ko'rinishi uchun yetarli
-    brightnessBoost: 1.8,
+    brightnessBoost: 2.8,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -339,7 +339,7 @@ const PhysicsConfig = {
 
     // Tugatish shartlari
     escapeRadius: 50.0,      // Nur uzoqlashdi — fon yulduzlarini ko'rsat
-    captureMultiplier: 0.4,  // Rs * multiplier = tutish radiusi (kattaroq = aniqroq shadow)
+    captureMultiplier: 0.25,  // Rs * multiplier = tutish radiusi (kattaroq = aniqroq shadow)
 
     get captureRadius() {
       return PhysicsConfig.blackHole.Rs * this.captureMultiplier;
@@ -370,7 +370,7 @@ const PhysicsConfig = {
     secondaryImage: true,
 
     // Foton halqasi yorqinligi
-    photonRingIntensity: 2.0,
+    photonRingIntensity: 6.0,
   },
 
   // ─────────────────────────────────────────────────────────────────────────

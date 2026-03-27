@@ -160,46 +160,29 @@ float diskAngularVelocity(float r, float Rs) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 vec3 blackbodyColor(float temperature) {
-  // temperature: [0, 1] normallashtirilgan
-  // 0 = sovuq (qizil), 1 = issiq (oq)
-
-  // Fizik asoslangan approksimatsiya
-  // Haqiqiy qora tana nurlanish spektridan interpolatsiya
+  // Interstellar Gargantua palitrasi:
+  // Sovuq (tashqi) — to'q sariq/bronza
+  // Issiq (ichki)  — oq, deyarli ko'kish-oq
+  // Foton halqa — sof oq
 
   vec3 color;
 
   if (temperature < 0.25) {
-    // Juda sovuq: qora → chuqur qizil
+    // Bronza-oltin: tashqi disk
     float t = temperature / 0.25;
-    color = vec3(
-      t * 0.6,
-      t * 0.05,
-      t * 0.01
-    );
+    color = vec3(0.7 + t * 0.25, 0.35 + t * 0.3, 0.05 + t * 0.15);
   } else if (temperature < 0.5) {
-    // Sovuq: chuqur qizil → to'q sariq
+    // Oltin → sariq-oq
     float t = (temperature - 0.25) / 0.25;
-    color = vec3(
-      0.6 + t * 0.4,
-      0.05 + t * 0.45,
-      0.01 + t * 0.09
-    );
+    color = vec3(0.95 + t * 0.05, 0.65 + t * 0.25, 0.2 + t * 0.45);
   } else if (temperature < 0.75) {
-    // Iliq: to'q sariq → sariq-oq
+    // Sariq-oq → issiq oq
     float t = (temperature - 0.5) / 0.25;
-    color = vec3(
-      1.0,
-      0.5 + t * 0.4,
-      0.1 + t * 0.5
-    );
+    color = vec3(1.0, 0.9 + t * 0.08, 0.65 + t * 0.3);
   } else {
-    // Issiq: sariq-oq → ko'kish oq
+    // Sof oq (ichki, juda issiq) — Interstellar'dagi markaziy porlash
     float t = (temperature - 0.75) / 0.25;
-    color = vec3(
-      1.0,
-      0.9 + t * 0.1,
-      0.6 + t * 0.35
-    );
+    color = vec3(1.0, 0.98 + t * 0.02, 0.95 + t * 0.05);
   }
 
   return color;
@@ -337,9 +320,10 @@ vec4 computeDiskColor(
   // ── 6. Yakuniy birlashtirish ──
   float finalLuminosity = lum * noiseFactor * edgeFade * innerFade;
 
-  // HDR yorqinlik — accretion disk juda yorqin
-  // Ichki qism 3-5x yorqinroq tashqaridan
-  float hdrMultiplier = 2.0 + temp * 3.0;
+  // HDR yorqinlik — Interstellar: disk quyoshdan millionlab marta yorqin
+  // Ichki qism (temp→1) juda oq va porlab turadi
+  // Tashqi qism sariq-bronza, xira
+  float hdrMultiplier = 4.0 + temp * 12.0;
   color *= finalLuminosity * hdrMultiplier;
 
   // Alpha — disk zichligi (post-processing uchun)

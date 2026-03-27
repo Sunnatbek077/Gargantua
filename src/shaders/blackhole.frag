@@ -185,17 +185,17 @@ float diskOrbitalVelocity(float r, float Rs) {
 
 // ── Formula #20: Qora tana rangi — INTERSTELLAR palitrasi ──
 vec3 blackbodyColor(float t) {
-  // Interstellar'da disk deyarli oq-oltin, qizil juda kam
+  // Interstellar: tashqi = bronza/oltin, ichki = sof oq
   if (t < 0.3) {
     float s = t / 0.3;
-    return vec3(s * 0.9, s * 0.65, s * 0.4);         // Qorong'i oltin
+    return vec3(0.6 + s * 0.3, 0.3 + s * 0.3, 0.05 + s * 0.15); // bronza
   }
   if (t < 0.6) {
     float s = (t - 0.3) / 0.3;
-    return vec3(0.9 + s * 0.1, 0.65 + s * 0.25, 0.4 + s * 0.35);  // Iliq oltin → oq
+    return vec3(0.9 + s * 0.1, 0.6 + s * 0.3, 0.2 + s * 0.5);   // oltin → oq
   }
   float s = (t - 0.6) / 0.4;
-  return vec3(1.0, 0.9 + s * 0.1, 0.75 + s * 0.22);  // Oq-oltin
+  return vec3(1.0, 0.9 + s * 0.09, 0.7 + s * 0.28);              // issiq oq
 }
 
 // Disk noise — spiral tuzilma
@@ -240,8 +240,8 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   float fade = smoothstep(0.0, 0.05, radPos) * (1.0 - smoothstep(0.7, 1.0, radPos));
 
   float finalLum = lum * max(nFactor, 0.1) * fade;
-  // INTERSTELLAR FIX: disk yorqinroq — bloom kuchli bo'ladi
-  float hdr = 3.0 + temp * 5.0;
+  // INTERSTELLAR: disk ichki qism oq, tashqi bronza
+  float hdr = 4.0 + temp * 8.0;
   color *= finalLum * hdr;
 
   return vec4(color, finalLum * fade);
@@ -658,7 +658,7 @@ void main() {
   // ── Post-processing pipeline ──
 
   // 1. Ekspozitsiya
-  color *= 1.0;
+  color *= 1.8;
 
   // 2. ACES Tone Mapping (Formula #26)
   color = acesToneMap(color);
