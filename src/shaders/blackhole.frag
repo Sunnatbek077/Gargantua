@@ -383,38 +383,29 @@ float filmGrain(vec2 uv, float time) {
 // Nurga ta'sir qiluvchi gravitatsion kuch
 // a = -M·h·(position / r³)
 // h = 1.5 * Rs² (foton uchun effektiv parametr)
-vec3 gravitationalAcceleration(vec3 pos, float Rs) {
+vec3 gravitationalAcceleration(vec3 pos, vec3 vel, float Rs) {
   float r = length(pos);
   if (r < 0.001) return vec3(0.0);
 
+  // Fotonlar uchun null geodezik tenglamasi (relativistik egrilish)
+  // a = -1.5 * Rs * |pos x vel|² / r⁵ * pos
+  vec3 h = cross(pos, vel);
+  float h2 = dot(h, h);
+  
   float r2 = r * r;
-  float r3 = r2 * r;
+  float r4 = r2 * r2;
 
-  // Schwarzschild geodezik: effektiv potentsial gradiyenti
-  // Foton uchun: a = -1.5 * Rs² / r⁴ * (pos/r) + korreksiyalar
-  //
-  // Soddalashtirilgan, lekin fizik jihatdan to'g'ri:
-  // Gravitatsion kuch + relativistik korreksiya
-  float M = Rs * 0.5;  // Rs = 2M → M = Rs/2
-
-  // Newtonian + GR korreksiya
-  // Newtonian: -M/r² * pos_hat
-  // GR korreksiya: -1.5 * Rs * L² / r⁴ (L = burchak impulsi)
-  float accelMag = -M / r2;
-
-  // Relativistik korreksiya — foton sferani to'g'ri beradi
-  // INTERSTELLAR FIX: 1.5 → 3.0 — nurlar kuchliroq egriladi
-  // Bu disk ustidan va ostidan ham ko'rinishini ta'minlaydi
-  float grCorrection = 1.0 + 3.0 * Rs * Rs / r2;
-
-  return normalize(pos) * accelMag * grCorrection;
+  // accelMag shunday tanlanganki, u nurning burchak impulsiga bog'liq (h2)
+  float accelMag = -1.5 * Rs * h2 / (r4 * r);
+  
+  return pos * accelMag;
 }
 
 // ── Kerr-Newman metriki uchun gravitatsion tezlanish (#2, #3, #4, #5) ──
 // Spin + Zaryad ta'sirini hisobga oluvchi korreksiya
-vec3 kerrNewmanAcceleration(vec3 pos, float Rs, float spin, float charge) {
+vec3 kerrNewmanAcceleration(vec3 pos, vec3 vel, float Rs, float spin, float charge) {
   if (abs(spin) < 0.001 && abs(charge) < 0.001) {
-    return gravitationalAcceleration(pos, Rs);
+    return gravitationalAcceleration(pos, vel, Rs);
   }
 
   float r = length(pos);
@@ -429,8 +420,8 @@ vec3 kerrNewmanAcceleration(vec3 pos, float Rs, float spin, float charge) {
   float sinTheta2 = 1.0 - cosTheta * cosTheta;
   float sigma = r * r + a * a * cosTheta * cosTheta;
   
-  // Asosiy Schwarzschild tezlanishi
-  vec3 accel = gravitationalAcceleration(pos, Rs);
+  // Asosiy Schwarzschild tezlanishi (Endi to'g'ri lense bo'ladi)
+  vec3 accel = gravitationalAcceleration(pos, vel, Rs);
 
   // Electrostatik repulsiya (Reissner-Nordström qismi)
   // Coulomb kuchi nurlarga (Q^2 / r^3) shaklida qarama-qarshi kuch beradi
@@ -516,9 +507,9 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
     // ── Gravitatsion tezlanish ──
     vec3 accel;
     if (abs(u_spin) > 0.001 || abs(u_charge) > 0.001) {
-      accel = kerrNewmanAcceleration(rayPos, Rs, u_spin, u_charge);
+      accel = kerrNewmanAcceleration(rayPos, rayDir, Rs, u_spin, u_charge);
     } else {
-      accel = gravitationalAcceleration(rayPos, Rs);
+      accel = gravitationalAcceleration(rayPos, rayDir, Rs);
     }
 
     // ── Integrallash ──
@@ -530,24 +521,24 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
       vec3 midPos1 = rayPos + k1x * 0.5;
       vec3 midDir1 = rayDir + k1v * 0.5;
       vec3 a2 = (abs(u_spin) > 0.001 || abs(u_charge) > 0.001)
-        ? kerrNewmanAcceleration(midPos1, Rs, u_spin, u_charge)
-        : gravitationalAcceleration(midPos1, Rs);
+        ? kerrNewmanAcceleration(midPos1, midDir1, Rs, u_spin, u_charge)
+        : gravitationalAcceleration(midPos1, midDir1, Rs);
       vec3 k2v = a2 * stepSize;
       vec3 k2x = midDir1 * stepSize;
 
       vec3 midPos2 = rayPos + k2x * 0.5;
       vec3 midDir2 = rayDir + k2v * 0.5;
       vec3 a3 = (abs(u_spin) > 0.001 || abs(u_charge) > 0.001)
-        ? kerrNewmanAcceleration(midPos2, Rs, u_spin, u_charge)
-        : gravitationalAcceleration(midPos2, Rs);
+        ? kerrNewmanAcceleration(midPos2, midDir2, Rs, u_spin, u_charge)
+        : gravitationalAcceleration(midPos2, midDir2, Rs);
       vec3 k3v = a3 * stepSize;
       vec3 k3x = midDir2 * stepSize;
 
       vec3 endPos = rayPos + k3x;
       vec3 endDir = rayDir + k3v;
       vec3 a4 = (abs(u_spin) > 0.001 || abs(u_charge) > 0.001)
-        ? kerrNewmanAcceleration(endPos, Rs, u_spin, u_charge)
-        : gravitationalAcceleration(endPos, Rs);
+        ? kerrNewmanAcceleration(endPos, endDir, Rs, u_spin, u_charge)
+        : gravitationalAcceleration(endPos, endDir, Rs);
       vec3 k4v = a4 * stepSize;
       vec3 k4x = endDir * stepSize;
 
@@ -572,28 +563,38 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
       break;
     }
 
-    // ── Accretion disk kesishishi ──
-    // y=0 tekisligini kesib o'tganini tekshirish
-    if (prevPos.y * rayPos.y < 0.0) {
-      // Kesishish nuqtasini interpolatsiya
-      float t = prevPos.y / (prevPos.y - rayPos.y);
-      vec3 hitPoint = mix(prevPos, rayPos, t);
-      float hitR = length(hitPoint.xz);
+    // ── Volumetrik Accretion Disk ──
+    float rXZ = length(rayPos.xz);
+    if (rXZ >= u_diskInnerRadius && rXZ <= u_diskOuterRadius) {
+      float H = rXZ * u_diskThickness; 
+      
+      // Nurning qadami diskni kesib o'tdimi yonga ichidami?
+      if (abs(rayPos.y) < H || prevPos.y * rayPos.y < 0.0) {
+        
+        vec3 hitPoint = abs(rayPos.y) < H ? rayPos : mix(prevPos, rayPos, prevPos.y / (prevPos.y - rayPos.y));
+        float localR = length(hitPoint.xz);
 
-      if (hitR >= u_diskInnerRadius && hitR <= u_diskOuterRadius) {
-        // Disk rangi
-        vec4 diskCol = computeDiskColor(hitR, hitPoint);
+        // Zichlik qalinlikka qarab o'zgaradi
+        float density = abs(rayPos.y) < H ? smoothstep(H, 0.0, abs(rayPos.y)) : 1.0;
 
-        // Doppler effekt
-        diskCol = applyDoppler(diskCol, hitPoint, hitR);
+        vec4 stepCol = computeDiskColor(localR, hitPoint);
+        stepCol = applyDoppler(stepCol, hitPoint, localR);
+        
+        // Volumetrik opacity hisoblash
+        float thicknessRatio = max(u_diskThickness, 0.01);
+        float stepAlpha = stepCol.a * density * (abs(rayPos.y) < H ? (stepSize * 1.5 / thicknessRatio) : 0.8); 
+        stepAlpha = clamp(stepAlpha, 0.0, 1.0);
 
-        // Alpha blending — bir necha marta diskni ko'rish mumkin
-        // (gravitatsion lensing tufayli)
-        accumulatedDiskColor += diskCol.rgb * (1.0 - accumulatedDiskAlpha);
-        accumulatedDiskAlpha += diskCol.a * (1.0 - accumulatedDiskAlpha);
-        accumulatedDiskAlpha = min(accumulatedDiskAlpha, 1.0);
-
+        accumulatedDiskColor += stepCol.rgb * stepAlpha * (1.0 - accumulatedDiskAlpha);
+        accumulatedDiskAlpha += stepAlpha * (1.0 - accumulatedDiskAlpha);
+        
         result.hitDisk = true;
+        
+        // Opacity 1 ga yetsa, qolgan hisoblashlarni to'xtatish (Optimization)
+        if (accumulatedDiskAlpha > 0.99) {
+          accumulatedDiskAlpha = 1.0;
+          break;
+        }
       }
     }
 

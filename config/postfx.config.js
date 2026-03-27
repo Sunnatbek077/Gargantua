@@ -48,15 +48,15 @@ const PostFXConfig = {
     // ── Formula #28: Threshold ──
     // bloom = max(0, luminance - threshold) * intensity
     // INTERSTELLAR: pastroq threshold — ko'proq porlash
-    threshold: 0.3,
+    threshold: 0.12,
 
     // INTERSTELLAR: kuchliroq bloom — disk atrofida keng glow
-    intensity: 2.5,
+    intensity: 4.5,
 
     // ── Formula #27: Gaussian blur ──
     // Blur radiusi (sigma) va o'tishlar soni
     // Ko'proq o'tish = yumshoqroq tarqalish
-    radius: 0.4,
+    radius: 0.7,
     passes: 5,               // Blur o'tishlari soni
 
     // INTERSTELLAR: iliqroq oltin bloom
@@ -108,7 +108,7 @@ const PostFXConfig = {
     },
 
     // Ekspozitsiya — umumiy yorqinlik
-    exposure: 1.0,
+    exposure: 1.6,
 
     // ── Formula #37: Gamma korreksiya ──
     // color_out = pow(color_linear, vec3(1.0/gamma))
