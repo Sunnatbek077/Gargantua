@@ -240,8 +240,9 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   float fade = smoothstep(0.0, 0.05, radPos) * (1.0 - smoothstep(0.7, 1.0, radPos));
 
   float finalLum = lum * max(nFactor, 0.1) * fade;
-  // INTERSTELLAR: disk ichki qism oq, tashqi bronza
-  float hdr = 4.0 + temp * 8.0;
+  // diskLuminosity max ~0.056, shuning uchun hdr kuchli bo'lishi shart
+  // ichki (temp→1): 130x, tashqi (temp→0): 50x
+  float hdr = 50.0 + temp * 80.0;
   color *= finalLum * hdr;
 
   return vec4(color, finalLum * fade);
@@ -582,7 +583,7 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
         
         // Volumetrik opacity hisoblash
         float thicknessRatio = max(u_diskThickness, 0.01);
-        float stepAlpha = stepCol.a * density * (abs(rayPos.y) < H ? (stepSize * 1.5 / thicknessRatio) : 0.8); 
+        float stepAlpha = stepCol.a * density * (abs(rayPos.y) < H ? (stepSize * 8.0 / thicknessRatio) : 0.8); 
         stepAlpha = clamp(stepAlpha, 0.0, 1.0);
 
         accumulatedDiskColor += stepCol.rgb * stepAlpha * (1.0 - accumulatedDiskAlpha);
