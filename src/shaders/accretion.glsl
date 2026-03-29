@@ -286,30 +286,30 @@ vec4 computeDiskColor(
   // ── 4. Noise tuzilma (Formulalar #31, #32) ──
   vec2 diskPos = hitPoint.xz;  // Disk tekisligidagi pozitsiya
 
+  float r = length(diskPos);
+  float phi = atan(diskPos.y, diskPos.x);
+
   // Aylanish — ichki qism tezroq (Kepler)
   float rotAngle = time * rotSpeed * (2.0 / (hitR + 1.0));
-  float cosA = cos(rotAngle);
-  float sinA = sin(rotAngle);
-  vec2 rotatedPos = vec2(
-    diskPos.x * cosA - diskPos.y * sinA,
-    diskPos.x * sinA + diskPos.y * cosA
-  );
+  phi -= rotAngle; // Azimut bo'yicha aylanish
 
-  float noiseVal = diskNoise(
-    rotatedPos,
-    time,
-    noiseScale,
-    noiseOctaves,
-    noiseLacunarity,
-    noisePersistence,
-    noiseTimeScale
-  );
+  // ── FIX 1: Kuchaytirilgan domain warping ──
+  float wp_r = r + 0.6 * fbm2D(vec2(r * 5.0, phi), 4, 2.0, 0.5);
+  float wp_phi = phi + 0.8 * fbm2D(vec2(r * 4.0, phi * 3.0), 4, 2.0, 0.5);
 
-  // Noise'ni yorqinlikka ta'sir ettirish
-  // Pozitiv noise = yorqinroq (gaz zichligi ko'proq)
-  // Negatif noise = xiraroq (gaz siyrak)
-  float noiseFactor = 0.6 + noiseVal * 0.4;
-  noiseFactor = max(noiseFactor, 0.1);  // To'liq qora bo'lmasin
+  // ── FIX 2: Kuchaytrilgan noiseCoord ──
+  vec3 noiseCoord = vec3(wp_r * noiseScale * 8.0, wp_phi * 5.0, time * noiseTimeScale * 0.5);
+  float noiseVal = fbm3D(noiseCoord, 6, noiseLacunarity, noisePersistence);
+
+  // Map from [-1, 1] to [0, 1]
+  float n = noiseVal * 0.5 + 0.5;
+  n = max(n, 0.0);
+  
+  // Multiply noise contrast: bright filaments pop against dark gaps
+  n = pow(n, 0.7);
+
+  // ── FIX 3: Kuchaytrilgan noiseFactor ──
+  float noiseFactor = mix(0.0, 2.5, pow(n, 1.4));
 
   // ── 5. Radial fade ──
   // Disk chetlariga qarab silliq so'nish
