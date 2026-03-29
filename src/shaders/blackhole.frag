@@ -560,7 +560,8 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
     // INTERSTELLAR FIX: aniqroq shadow chegara
     if (newR < captureR + u_rOuterHorizon) {
       result.captured = true;
-      result.color = vec3(0.0);
+      // Disk rangini saqlab qolamiz (disk qora tuynukning oldida bo'lishi uchun)
+      result.color = accumulatedDiskColor;
       break;
     }
 
