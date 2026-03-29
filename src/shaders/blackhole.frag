@@ -570,21 +570,44 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
     if (rXZ >= u_diskInnerRadius && rXZ <= u_diskOuterRadius) {
       float H = rXZ * u_diskThickness; 
       
-      // Nurning qadami diskni kesib o'tdimi yonga ichidami?
-      if (abs(rayPos.y) < H || prevPos.y * rayPos.y < 0.0) {
-        
-        vec3 hitPoint = abs(rayPos.y) < H ? rayPos : mix(prevPos, rayPos, prevPos.y / (prevPos.y - rayPos.y));
+      float y0 = prevPos.y;
+      float y1 = rayPos.y;
+      float dy = y1 - y0;
+      
+      float t_in = 0.0;
+      float t_out = 1.0;
+      bool intersects = false;
+      
+      if (abs(dy) > 1e-5) {
+        float t1 = (H - y0) / dy;
+        float t2 = (-H - y0) / dy;
+        t_in = clamp(min(t1, t2), 0.0, 1.0);
+        t_out = clamp(max(t1, t2), 0.0, 1.0);
+        if (t_out > t_in) intersects = true;
+      } else {
+        if (abs(y0) <= H) {
+          t_in = 0.0;
+          t_out = 1.0;
+          intersects = true;
+        }
+      }
+      
+      if (intersects) {
+        float fraction = t_out - t_in;
+        float t_mid = (t_in + t_out) * 0.5;
+        vec3 hitPoint = mix(prevPos, rayPos, t_mid);
         float localR = length(hitPoint.xz);
 
-        // Zichlik qalinlikka qarab o'zgaradi
-        float density = abs(rayPos.y) < H ? smoothstep(H, 0.0, abs(rayPos.y)) : 1.0;
+        // Zichlik qalinlik orasida uzluksiz o'zgaradi (Banding yo'qolishi uchun yagona yechim)
+        float density = smoothstep(H, 0.0, abs(hitPoint.y));
 
         vec4 stepCol = computeDiskColor(localR, hitPoint);
         stepCol = applyDoppler(stepCol, hitPoint, localR);
         
-        // Volumetrik opacity hisoblash
         float thicknessRatio = max(u_diskThickness, 0.01);
-        float stepAlpha = stepCol.a * density * (abs(rayPos.y) < H ? (stepSize * 8.0 / thicknessRatio) : 0.8); 
+        
+        // fraction * stepSize nurning disk qalinligidagi haqiqiy masofasini beradi
+        float stepAlpha = stepCol.a * density * (fraction * stepSize) * (8.0 / thicknessRatio); 
         stepAlpha = clamp(stepAlpha, 0.0, 1.0);
 
         accumulatedDiskColor += stepCol.rgb * stepAlpha * (1.0 - accumulatedDiskAlpha);
@@ -592,7 +615,6 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
         
         result.hitDisk = true;
         
-        // Opacity 1 ga yetsa, qolgan hisoblashlarni to'xtatish (Optimization)
         if (accumulatedDiskAlpha > 0.99) {
           accumulatedDiskAlpha = 1.0;
           break;
