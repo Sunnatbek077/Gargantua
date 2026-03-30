@@ -14,8 +14,16 @@
  *   6. Foton halqasi porlashi
  *   7. Tone mapping va yakuniy rang (#26, #36, #37)
  *
- * Formulalar: BARCHA 37 ta shu yerda yoki #include orqali ishlatiladi
+ * Tuzilma:
+ *   Har bir modul alohida .glsl faylda:
+ *     noise.glsl     — Procedural noise (hash, fbm)
+ *     accretion.glsl — Accretion disk (halqa rangi, tuzilmasi)
+ *     doppler.glsl   — Doppler effekt (rang/yorqinlik siljishi)
+ *     lensing.glsl   — Foton halqa va event horizon effektlari
+ *     tonemap.glsl   — Tone mapping va post-processing
+ *     gravity.glsl   — Gravitatsion tezlanish (qora tuynuk fizikasi)
  *
+ * O'zgartirish uchun tegishli .glsl faylni tahrirlang.
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
@@ -95,353 +103,17 @@ varying vec2 vUv;
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// INCLUDE: Yordamchi shader fayllar
+// INCLUDE: Modul fayllar
 // ═══════════════════════════════════════════════════════════════════════════════
-// Build tizimida bu #include orqali alohida fayllardan olinadi.
-// Hozir esa to'g'ridan-to'g'ri shu yerga yoziladi.
-// Vite + glslify yoki raw-loader bilan alohida fayllardan import qilish mumkin.
+// Har bir modul alohida faylda — o'zgartirish oson.
+// ShaderLoader #include direktivlarini avtomatik hal qiladi.
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// NOISE FUNKSIYALARI (noise.glsl)
-// ─────────────────────────────────────────────────────────────────────────────
-
-float hash21(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
-float hash31(vec3 p) {
-  p = fract(p * 0.1031);
-  p += dot(p, p.zyx + 31.32);
-  return fract((p.x + p.y) * p.z);
-}
-
-vec3 quintic3(vec3 x) {
-  return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
-}
-
-float gradientNoise3D(vec3 p) {
-  vec3 i = floor(p);
-  vec3 f = fract(p);
-  vec3 u = quintic3(f);
-
-  float n000 = hash31(i);
-  float n100 = hash31(i + vec3(1, 0, 0));
-  float n010 = hash31(i + vec3(0, 1, 0));
-  float n110 = hash31(i + vec3(1, 1, 0));
-  float n001 = hash31(i + vec3(0, 0, 1));
-  float n101 = hash31(i + vec3(1, 0, 1));
-  float n011 = hash31(i + vec3(0, 1, 1));
-  float n111 = hash31(i + vec3(1, 1, 1));
-
-  float n00 = mix(n000, n100, u.x);
-  float n10 = mix(n010, n110, u.x);
-  float n01 = mix(n001, n101, u.x);
-  float n11 = mix(n011, n111, u.x);
-  float n0  = mix(n00, n10, u.y);
-  float n1  = mix(n01, n11, u.y);
-
-  return mix(n0, n1, u.z) * 2.0 - 1.0;
-}
-
-float fbm3D(vec3 p, int octaves, float lac, float pers) {
-  float val = 0.0, amp = 0.5, freq = 1.0, maxVal = 0.0;
-  for (int i = 0; i < 8; i++) {
-    if (i >= octaves) break;
-    val += amp * gradientNoise3D(p * freq);
-    maxVal += amp;
-    freq *= lac;
-    amp *= pers;
-  }
-  return val / maxVal;
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ACCRETION DISK (accretion.glsl)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Formula #19: Temperatura ──
-float diskTemperature(float r, float rISCO) {
-  if (r <= rISCO) return 0.0;
-  float ratio = rISCO / r;
-  return pow(ratio, 0.75) * pow(max(1.0 - sqrt(ratio), 0.0), 0.25);
-}
-
-// ── Formula #21: Yorqinlik ──
-float diskLuminosity(float r, float rISCO) {
-  if (r <= rISCO) return 0.0;
-  float ratio = rISCO / r;
-  return ratio * ratio * ratio * max(1.0 - sqrt(ratio), 0.0);
-}
-
-// ── Formula #18: Orbital tezlik ──
-float diskOrbitalVelocity(float r, float Rs) {
-  if (r <= Rs) return 0.999;
-  return min(1.0 / sqrt(r) / sqrt(1.0 - Rs / r), 0.999);
-}
-
-// ── Formula #20: Qora tana rangi — INTERSTELLAR palitrasi ──
-vec3 blackbodyColor(float t) {
-  // Interstellar: tashqi = bronza/oltin, ichki = sof oq
-  if (t < 0.3) {
-    float s = t / 0.3;
-    return vec3(0.6 + s * 0.3, 0.3 + s * 0.3, 0.05 + s * 0.15); // bronza
-  }
-  if (t < 0.6) {
-    float s = (t - 0.3) / 0.3;
-    return vec3(0.9 + s * 0.1, 0.6 + s * 0.3, 0.2 + s * 0.5);   // oltin → oq
-  }
-  float s = (t - 0.6) / 0.4;
-  return vec3(1.0, 0.9 + s * 0.09, 0.7 + s * 0.28);              // issiq oq
-}
-
-// Disk noise — spiral tuzilma
-float diskNoise(vec2 diskPos, float time) {
-  float r = length(diskPos);
-  float theta = atan(diskPos.y, diskPos.x);
-  float spiralAngle = theta + 3.0 / (r + 0.5) + time * u_noiseTimeScale * (2.0 / (r + 1.0));
-
-  vec3 p3d = vec3(r * u_noiseScale, spiralAngle * u_noiseScale * 0.5, time * u_noiseTimeScale * 0.3);
-
-  float large = fbm3D(p3d * 0.5, max(u_noiseOctaves - 2, 2), u_noiseLacunarity, u_noisePersistence);
-  float small = fbm3D(p3d * 2.0, u_noiseOctaves, u_noiseLacunarity, u_noisePersistence);
-  float spiral = sin(spiralAngle * 3.0 + r * 2.0) * 0.5 + 0.5;
-
-  return large * 0.55 + small * 0.3 + pow(spiral, 1.5) * 0.15;
-}
-
-// To'liq disk rangi
-vec4 computeDiskColor(float hitR, vec3 hitPoint) {
-  float temp = diskTemperature(hitR, u_diskInnerRadius);
-  float lum  = diskLuminosity(hitR, u_diskInnerRadius);
-
-  // Rang
-  vec3 bbColor = blackbodyColor(temp);
-  vec3 mapColor = temp < 0.5
-    ? mix(u_diskColorCool, u_diskColorWarm, temp * 2.0)
-    : mix(u_diskColorWarm, u_diskColorHot, (temp - 0.5) * 2.0);
-  vec3 color = mix(mapColor, bbColor, 0.4);
-
-  // Aylanish
-  vec2 dp = hitPoint.xz;
-  float rotAngle = u_time * u_diskRotSpeed * (2.0 / (hitR + 1.0));
-  float ca = cos(rotAngle), sa = sin(rotAngle);
-  vec2 rp = vec2(dp.x * ca - dp.y * sa, dp.x * sa + dp.y * ca);
-
-  // Noise
-  float n = diskNoise(rp, u_time);
-  float nFactor = 0.6 + n * 0.4;
-
-  // Edge fade
-  float radPos = (hitR - u_diskInnerRadius) / (u_diskOuterRadius - u_diskInnerRadius);
-  float fade = smoothstep(0.0, 0.05, radPos) * (1.0 - smoothstep(0.7, 1.0, radPos));
-
-  float finalLum = lum * max(nFactor, 0.1) * fade;
-  // diskLuminosity max ~0.056, shuning uchun hdr kuchli bo'lishi shart
-  // ichki (temp→1): 130x, tashqi (temp→0): 50x
-  float hdr = 50.0 + temp * 80.0;
-  color *= finalLum * hdr;
-
-  return vec4(color, finalLum * fade);
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DOPPLER (doppler.glsl)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Formula #22: Doppler omili ──
-float dopplerFactor(vec3 hitPt, vec3 camPos, float vel) {
-  vec2 dp = hitPt.xz;
-  float r = length(dp);
-  if (r < 0.001) return 1.0;
-
-  vec3 orbDir = normalize(vec3(-dp.y, 0.0, dp.x));
-  vec3 toObs = normalize(camPos - hitPt);
-  float cosA = dot(orbDir, toObs);
-  float beta = vel;
-  float gamma = 1.0 / sqrt(max(1.0 - beta * beta, 0.0001));
-
-  return 1.0 / (gamma * (1.0 + beta * cosA));
-}
-
-// ── Formula #23: Beaming ──
-float dopplerBeaming(float g, float exp_val) {
-  return pow(clamp(g, 0.1, 5.0), exp_val);
-}
-
-// ── Formula #24: Gravitatsion redshift factor ──
-float gravRedshiftFactor(float r, float Rs) {
-  if (r <= Rs) return 0.0;
-  return sqrt(max(1.0 - Rs / r, 0.0));
-}
-
-// ── Rang siljishi ──
-vec3 dopplerColorShift(vec3 col, float g, float str) {
-  float shift = (g - 1.0) * str;
-  if (shift > 0.0) {
-    col.b += shift * 0.3;
-    col.g += shift * 0.1;
-    col.r -= shift * 0.1;
-  } else {
-    col.r -= shift * 0.2;
-    col.g += shift * 0.15;
-    col.b += shift * 0.3;
-  }
-  return max(col, vec3(0.0));
-}
-
-// To'liq Doppler qo'llash
-vec4 applyDoppler(vec4 diskCol, vec3 hitPt, float hitR) {
-  if (u_dopplerEnabled < 0.5) return diskCol;
-
-  float vel = diskOrbitalVelocity(hitR, u_Rs);
-  float g = dopplerFactor(hitPt, u_cameraPos, vel);
-  float beam = dopplerBeaming(g, u_beamingExp);
-
-  float grav = 1.0;
-  if (u_gravRedshift > 0.5) {
-    grav = gravRedshiftFactor(hitR, u_Rs);
-  }
-
-  float totalShift = g * grav;
-  vec3 shifted = dopplerColorShift(diskCol.rgb, totalShift, u_colorShift);
-  float brightness = beam * grav * u_brightnessBoost;
-  shifted *= brightness;
-
-  return vec4(shifted, diskCol.a * min(brightness, 1.0));
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// LENSING (lensing.glsl)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Foton halqa porlashi ──
-// INTERSTELLAR FIX: normalizatsiya — zoom'da barqaror
-float photonRingGlow(float closest, float rPh) {
-  // Nisbiy masofa: foton sferaga qanchalik yaqin
-  float relDist = abs(closest - rPh) / rPh;
-  
-  // Asosiy glow — keng, yumshoq
-  float glow = exp(-relDist * relDist * 80.0) * u_photonRingIntensity;
-  
-  // Birlamchi halqa — tor, yorqin
-  float ring1 = exp(-relDist * relDist * 400.0) * u_photonRingIntensity * 2.0;
-  
-  // Ikkilamchi halqa — juda tor
-  float relDist2 = abs(closest - rPh * 1.01) / rPh;
-  float ring2 = exp(-relDist2 * relDist2 * 1500.0) * u_photonRingIntensity * 0.8;
-  
-  return glow + ring1 + ring2;
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TONE MAPPING (tonemap.glsl)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Formula #36: Luminance ──
-float calcLuminance(vec3 c) {
-  return dot(c, vec3(0.2126, 0.7152, 0.0722));
-}
-
-// ── Formula #26: ACES ──
-vec3 acesToneMap(vec3 x) {
-  return clamp(
-    (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14),
-    0.0, 1.0
-  );
-}
-
-// ── Formula #37: Gamma ──
-vec3 gammaCorrect(vec3 c) {
-  return pow(max(c, vec3(0.0)), vec3(1.0 / 2.2));
-}
-
-// Vignette — INTERSTELLAR: kuchliroq kadr hissi
-float vignette(vec2 uv) {
-  vec2 d = abs(uv - 0.5) * 2.0;
-  d = pow(d, vec2(0.8));
-  float dist = pow(d.x + d.y, 1.0 / 0.8);
-  return 1.0 - smoothstep(0.3, 1.0, dist) * 0.55;
-}
-
-// ── Formula #29: Film grain — INTERSTELLAR: 70mm IMAX ──
-float filmGrain(vec2 uv, float time) {
-  return (fract(sin(dot(uv + fract(time * 0.71), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.12;
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// GRAVITATSION TEZLANISH — ray marching uchun
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ── Formula #1 (Schwarzschild) soddalashtirilgan gravitatsion tezlanish ──
-// Nurga ta'sir qiluvchi gravitatsion kuch
-// a = -M·h·(position / r³)
-// h = 1.5 * Rs² (foton uchun effektiv parametr)
-vec3 gravitationalAcceleration(vec3 pos, vec3 vel, float Rs) {
-  float r = length(pos);
-  if (r < 0.001) return vec3(0.0);
-
-  // Fotonlar uchun null geodezik tenglamasi (relativistik egrilish)
-  // a = -1.5 * Rs * |pos x vel|² / r⁵ * pos
-  vec3 h = cross(pos, vel);
-  float h2 = dot(h, h);
-  
-  float r2 = r * r;
-  float r4 = r2 * r2;
-
-  // accelMag shunday tanlanganki, u nurning burchak impulsiga bog'liq (h2)
-  float accelMag = -1.5 * Rs * h2 / (r4 * r);
-  
-  return pos * accelMag;
-}
-
-// ── Kerr-Newman metriki uchun gravitatsion tezlanish (#2, #3, #4, #5) ──
-// Spin + Zaryad ta'sirini hisobga oluvchi korreksiya
-vec3 kerrNewmanAcceleration(vec3 pos, vec3 vel, float Rs, float spin, float charge) {
-  if (abs(spin) < 0.001 && abs(charge) < 0.001) {
-    return gravitationalAcceleration(pos, vel, Rs);
-  }
-
-  float r = length(pos);
-  if (r < 0.001) return vec3(0.0);
-
-  float M = Rs * 0.5;
-  float a = spin * M;  // Kerr parametri
-  float Q = charge;    // Zaryad parametri
-
-  // ── Formula #4, #5: Σ va Δ ──
-  float cosTheta = pos.y / r;
-  float sinTheta2 = 1.0 - cosTheta * cosTheta;
-  float sigma = r * r + a * a * cosTheta * cosTheta;
-  
-  // Asosiy Schwarzschild tezlanishi (Endi to'g'ri lense bo'ladi)
-  vec3 accel = gravitationalAcceleration(pos, vel, Rs);
-
-  // Electrostatik repulsiya (Reissner-Nordström qismi)
-  // Coulomb kuchi nurlarga (Q^2 / r^3) shaklida qarama-qarshi kuch beradi
-  if (abs(Q) > 0.001) {
-    vec3 repulsion = pos * (Q * Q) / (r * r * r * r); // soddalashtirilgan repel
-    accel += repulsion;
-  }
-
-  // Frame-dragging — spin ta'sirida fazovaqt "tortiladi"
-  if (abs(a) > 0.001) {
-    // φ yo'nalishda qo'shimcha tezlanish disk aylanishi yo'nalishida (y o'qi atrofida)
-    vec3 frameDrag = vec3(-pos.z, 0.0, pos.x); 
-    // Zaryad Q ham frame-dragging ga ta'sir qiladi
-    float dragMag = a * (2.0 * M * r - Q * Q) / (sigma * r * r);
-    accel += normalize(frameDrag) * dragMag * 0.1;
-  }
-
-  return accel;
-}
+#include <noise>
+#include <accretion>
+#include <doppler>
+#include <lensing>
+#include <tonemap>
+#include <gravity>
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -449,18 +121,10 @@ vec3 kerrNewmanAcceleration(vec3 pos, vec3 vel, float Rs, float spin, float char
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // Formulalar #6-9:
-//   #6 — Geodezik tenglamasi (nurning egri fazovaqtdagi harakati)
-//   #7 — Christoffel simvollari (gravitationalAcceleration ichida)
+//   #6 — Geodezik tenglamasi
+//   #7 — Christoffel simvollari (gravity.glsl ichida)
 //   #8 — Verlet integrallash
 //   #9 — RK4 integrallash
-//
-// Har bir piksel uchun:
-//   1. Kameradan nur yo'naltiriladi
-//   2. Nur bosqichma-bosqich harakatlantiriladi
-//   3. Har qadamda gravitatsion tezlanish hisoblanadi
-//   4. Nurning yo'nalishi egriladi
-//   5. Disk kesishishi, qora tuynukka tushish yoki qochish tekshiriladi
-// ═══════════════════════════════════════════════════════════════════════════════
 
 struct RayResult {
   vec3  color;             // Yakuniy rang (HDR)
@@ -494,8 +158,6 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
     // ── Adaptiv qadam kattaligi ──
     float stepSize;
     if (u_adaptiveStep > 0.5) {
-      // Qora tuynukka yaqinda kichik qadam — aniqlik
-      // Uzoqda katta qadam — tezlik
       stepSize = clamp(
         r * u_stepSizeFactor,
         u_minStepSize,
@@ -505,7 +167,7 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
       stepSize = u_stepSize;
     }
 
-    // ── Gravitatsion tezlanish ──
+    // ── Gravitatsion tezlanish (gravity.glsl) ──
     vec3 accel;
     if (abs(u_spin) > 0.001 || abs(u_charge) > 0.001) {
       accel = kerrNewmanAcceleration(rayPos, rayDir, Rs, u_spin, u_charge);
@@ -557,27 +219,25 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
     float newR = length(rayPos);
 
     // ── Qora tuynukka tushdi ──
-    // INTERSTELLAR FIX: aniqroq shadow chegara
     if (newR < captureR + u_rOuterHorizon) {
       result.captured = true;
-      // Disk rangini saqlab qolamiz (disk qora tuynukning oldida bo'lishi uchun)
       result.color = accumulatedDiskColor;
       break;
     }
 
-    // ── Volumetrik Accretion Disk ──
+    // ── Volumetrik Accretion Disk (accretion.glsl) ──
     float rXZ = length(rayPos.xz);
     if (rXZ >= u_diskInnerRadius && rXZ <= u_diskOuterRadius) {
-      float H = rXZ * u_diskThickness; 
-      
+      float H = rXZ * u_diskThickness;
+
       float y0 = prevPos.y;
       float y1 = rayPos.y;
       float dy = y1 - y0;
-      
+
       float t_in = 0.0;
       float t_out = 1.0;
       bool intersects = false;
-      
+
       if (abs(dy) > 1e-5) {
         float t1 = (H - y0) / dy;
         float t2 = (-H - y0) / dy;
@@ -591,30 +251,28 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
           intersects = true;
         }
       }
-      
+
       if (intersects) {
         float fraction = t_out - t_in;
         float t_mid = (t_in + t_out) * 0.5;
         vec3 hitPoint = mix(prevPos, rayPos, t_mid);
         float localR = length(hitPoint.xz);
 
-        // Zichlik qalinlik orasida uzluksiz o'zgaradi (Banding yo'qolishi uchun yagona yechim)
         float density = smoothstep(H, 0.0, abs(hitPoint.y));
 
         vec4 stepCol = computeDiskColor(localR, hitPoint);
         stepCol = applyDoppler(stepCol, hitPoint, localR);
-        
+
         float thicknessRatio = max(u_diskThickness, 0.01);
-        
-        // fraction * stepSize nurning disk qalinligidagi haqiqiy masofasini beradi
-        float stepAlpha = stepCol.a * density * (fraction * stepSize) * (8.0 / thicknessRatio); 
+
+        float stepAlpha = stepCol.a * density * (fraction * stepSize) * (8.0 / thicknessRatio);
         stepAlpha = clamp(stepAlpha, 0.0, 1.0);
 
         accumulatedDiskColor += stepCol.rgb * stepAlpha * (1.0 - accumulatedDiskAlpha);
         accumulatedDiskAlpha += stepAlpha * (1.0 - accumulatedDiskAlpha);
-        
+
         result.hitDisk = true;
-        
+
         if (accumulatedDiskAlpha > 0.99) {
           accumulatedDiskAlpha = 1.0;
           break;
@@ -622,34 +280,43 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
       }
     }
 
-    // ── Qochdi — yulduz foni ──
+    // ── Qochdi — yulduz foni + Event Horizon Depth Effects (lensing.glsl) ──
     if (newR > u_escapeRadius) {
-      // ── Formula #35: Cubemap lookup ──
       vec3 starColor = textureCube(u_starfieldCube, rayDir).rgb;
 
-      // Foton halqa porlashi
       float ringGlow = photonRingGlow(result.closestApproach, u_rPhotonSphere);
       vec3 ringColor = vec3(1.0, 0.85, 0.6) * ringGlow;
 
-      // Foton sfera yaqinida kuchayish
       float approachRatio = u_rPhotonSphere / max(result.closestApproach, u_rPhotonSphere * 0.5);
       float mag = 1.0 + pow(approachRatio, 8.0) * 3.0;
 
-      vec3 bgColor = starColor * mag + ringColor;
+      float edgeFresnel = edgeFresnelFactor(result.closestApproach, u_rPhotonSphere, u_rOuterHorizon);
+      mag += edgeFresnel * 0.7;
 
-      // Disk bilan birlashtirish
+      vec3 gravGlow = gravitationalGlow(result.closestApproach, u_rPhotonSphere, u_rOuterHorizon, u_time);
+      float depthCue = sphericalDepthCue(result.closestApproach, u_rPhotonSphere);
+
+      vec3 bgColor = starColor * mag * (1.0 + depthCue) + ringColor + gravGlow;
+
       result.color = accumulatedDiskColor + bgColor * (1.0 - accumulatedDiskAlpha);
       break;
     }
   }
 
-  // Agar loop tugadi, lekin hali bitmaganligi —
-  // nurni qochgan deb hisoblaymiz
+  // Loop tugadi lekin bitmaganligi — qochgan deb hisoblaymiz
   if (!result.captured && result.color == vec3(0.0)) {
     vec3 starColor = textureCube(u_starfieldCube, rayDir).rgb;
     float ringGlow = photonRingGlow(result.closestApproach, u_rPhotonSphere);
     vec3 ringColor = vec3(1.0, 0.85, 0.6) * ringGlow;
-    result.color = accumulatedDiskColor + (starColor + ringColor) * (1.0 - accumulatedDiskAlpha);
+
+    float approachRatio = u_rPhotonSphere / max(result.closestApproach, u_rPhotonSphere * 0.5);
+    float mag = 1.0 + pow(approachRatio, 8.0) * 3.0;
+    float edgeFresnel = edgeFresnelFactor(result.closestApproach, u_rPhotonSphere, u_rOuterHorizon);
+    mag += edgeFresnel * 1.5;
+    vec3 gravGlow = gravitationalGlow(result.closestApproach, u_rPhotonSphere, u_rOuterHorizon, u_time);
+    float depthCue = sphericalDepthCue(result.closestApproach, u_rPhotonSphere);
+
+    result.color = accumulatedDiskColor + (starColor * mag * (1.0 + depthCue) + ringColor + gravGlow) * (1.0 - accumulatedDiskAlpha);
   }
 
   return result;
@@ -662,11 +329,9 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
 
 void main() {
   // ── Formula #34: Ray generation ──
-  // Piksel koordinatalarini NDC ga aylantirish
   vec2 ndc = (vUv - 0.5) * 2.0;
   ndc.x *= u_aspectRatio;
 
-  // Nur yo'nalishi
   vec3 rayDir = normalize(
     u_cameraRight * ndc.x +
     u_cameraUp    * ndc.y +
@@ -680,7 +345,7 @@ void main() {
 
   vec3 color = result.color;
 
-  // ── Post-processing pipeline ──
+  // ── Post-processing pipeline (tonemap.glsl) ──
 
   // 1. Ekspozitsiya
   color *= 1.8;
@@ -697,7 +362,6 @@ void main() {
   // 5. Film grain (Formula #29)
   float grain = filmGrain(vUv, u_time);
   float lum = calcLuminance(color);
-  // Qorong'i joylarda ko'proq, yorqinda kam
   float grainResponse = mix(1.0, 0.3, smoothstep(0.0, 0.5, lum));
   color += grain * grainResponse;
 

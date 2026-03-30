@@ -1,270 +1,109 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * GARGANTUA — Gravitational Lensing Shader
+ * GARGANTUA — Gravitational Lensing & Event Horizon Effects
  * ═══════════════════════════════════════════════════════════════════════════════
  *
- * Gravitatsion linzalash — qora tuynuk orqasidagi yulduzlar
- * egrilgan nurlar orqali ko'rinadi. Bu Interstellar filmidagi
- * eng esda qolarli vizual effekt.
+ * Foton halqa porlashi va qora tuynuk siluetining 3D chuqurligi.
  *
- * Fizik mohiyat:
- *   Massiv obyekt (qora tuynuk) fazovaqtni egadi.
- *   Yorug'lik "to'g'ri chiziqda" harakatlanadi — lekin
- *   egri fazovaqtda "to'g'ri chiziq" bizga "egri" ko'rinadi.
+ * Foton sfera (r = 1.5 Rs) yaqinida nurlar qora tuynuk atrofida
+ * aylanib o'tadi — bu "foton halqasi" Interstellar'dagi eng yorqin chiziq.
  *
- * Natija:
- *   - Orqa fondagi yulduzlar "egri" ko'rinadi
- *   - Eynshteyn halqasi — fon yulduzlarining aylana tasviri
- *   - Ikkilamchi tasvir — orqadagi yulduzlarning ikkinchi nusxasi
- *   - Foton halqasi — eng yorqin chiziq (r = 1.5 Rs)
+ * Event horizon depth effektlari:
+ *   - Fresnel-like edge brightening (siluet chegarasi)
+ *   - Gravitational glow (fazovaqt egriligi)
+ *   - Spherical depth cue (3D sferik ko'rinish)
  *
  * Formulalar:
- *   #13 — δ = 4GM/(bc²)                    Burilish burchagi
- *   #14 — θ_E = √(4GM·D_ls/(c²·D_l·D_s))  Eynshteyn halqasi
- *   #15 — β = θ - D_ls/D_s · δ(θ)          Linza tenglamasi
- *   #16 — μ = θ/β · dθ/dβ                  Kuchayish
+ *   #13 — δ = 4GM/(bc²)           Burilish burchagi
+ *   #16 — μ = θ/β · dθ/dβ         Kuchayish
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// I. BURILISH BURCHAGI
+// I. FOTON HALQA PORLASHI
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// ── Formula #13 ──
-//
-// δ = 4GM / (b · c²)
-//
-// Bu yerda:
-//   b — impakt parametri (nur va qora tuynuk markazi orasidagi masofa)
-//   G, M, c — fizik konstantalar
-//
-// Natural units'da (G=1, c=1, M=1):
-//   δ = 4 / b
-//
-// MUHIM: Bu formula faqat KUCHSIZ maydon limiti uchun —
-// ya'ni b >> Rs bo'lganda. Kuchli maydon (b ≈ Rs) uchun
-// to'liq geodezik integrallash kerak (ray marching).
-//
-// Bu funksiya qo'shimcha diagnostika uchun — asosiy lensing
-// ray marching orqali blackhole.frag'da hisoblanadi.
-// ─────────────────────────────────────────────────────────────────────────────
+// Asymmetric multi-ring structure with depth-aware falloff
 
-float deflectionAngle(float impactParameter, float mass) {
-  // b = 0 da singularity — himoya
-  if (impactParameter < 0.01) return 3.14159;  // Maksimal burilish (π)
+float photonRingGlow(float closest, float rPh) {
+  float relDist = abs(closest - rPh) / rPh;
 
-  // ── Kuchsiz maydon ──
-  // δ = 4M / b
-  float weakField = 4.0 * mass / impactParameter;
+  // Asymmetric falloff: gentler outside, sharper at shadow edge
+  float asymFactor = mix(1.3, 0.7, smoothstep(rPh * 0.98, rPh * 1.05, closest));
 
-  // ── Kuchli maydon korreksiyasi ──
-  // Yuqori tartibli qo'shimchalar (post-Newtonian)
-  // δ ≈ 4M/b + 15π M²/(4b²) + ...
-  float b2 = impactParameter * impactParameter;
-  float strongCorrection = (15.0 * 3.14159 / 4.0) * mass * mass / b2;
+  // Wide halo
+  float glow = exp(-relDist * relDist * 55.0 * asymFactor) * u_photonRingIntensity;
 
-  return weakField + strongCorrection;
+  // Primary ring (n=1 orbit)
+  float ring1 = exp(-relDist * relDist * 400.0) * u_photonRingIntensity * 2.0;
+
+  // Secondary sub-ring (n=2 orbit)
+  float relDist2 = abs(closest - rPh * 1.01) / rPh;
+  float ring2 = exp(-relDist2 * relDist2 * 1500.0) * u_photonRingIntensity * 0.8;
+
+  // Tertiary sub-ring (n=3 orbit)
+  float relDist3 = abs(closest - rPh * 1.003) / rPh;
+  float ring3 = exp(-relDist3 * relDist3 * 3500.0) * u_photonRingIntensity * 0.3;
+
+  // Inner caustic — shadow boundary
+  float shadowEdgeDist = abs(closest - rPh * 0.997) / rPh;
+  float caustic = exp(-shadowEdgeDist * shadowEdgeDist * 1800.0) * u_photonRingIntensity * 0.2;
+
+  return glow + ring1 + ring2 + ring3 + caustic;
 }
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// II. EYNSHTEYN HALQASI
+// II. FRESNEL-LIKE EDGE BRIGHTENING
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// ── Formula #14 ──
-//
-// θ_E = √(4GM · D_ls / (c² · D_l · D_s))
-//
-// Bu yerda:
-//   D_l  — kuzatuvchidan linzagacha masofa
-//   D_s  — kuzatuvchidan manbagacha masofa
-//   D_ls — linzadan manbagacha masofa
-//
-// Eynshteyn halqasi — manba, linza va kuzatuvchi bir chiziqda
-// bo'lganda hosil bo'ladigan mukammal aylana.
-//
-// Haqiqatda mukammal aylana kam uchraydi — lekin bizning
-// simulyatsiyada yulduzli fon "cheksiz uzoqda" bo'lgani uchun
-// Eynshteyn halqasi har doim ko'rinadi.
-//
-// Natural units'da va D_s >> D_l uchun:
-//   θ_E ≈ √(4M / D_l)
-// ─────────────────────────────────────────────────────────────────────────────
+// Siluet chegarasida nurlarning konvergensiyasi
 
-float einsteinRingRadius(float mass, float distToLens) {
-  if (distToLens < 0.01) return 0.0;
+float edgeFresnelFactor(float closestApproach, float rPhoton, float rHorizon) {
+  float approachRatio = closestApproach / rPhoton;
+  float edgeProximity = max(approachRatio - 1.0, 0.0);
 
-  // Soddalashtirilgan: manba cheksiz uzoqda
-  // θ_E ≈ √(4M / D_l)
-  return sqrt(4.0 * mass / distToLens);
+  float fresnel = exp(-edgeProximity * edgeProximity * 25.0);
+  float depthGradient = smoothstep(rHorizon, rPhoton * 1.5, closestApproach);
+
+  return fresnel * depthGradient;
 }
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// III. LINZA TENGLAMASI
+// III. GRAVITATIONAL GLOW
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// ── Formula #15 ──
-//
-// β = θ - D_ls/D_s · δ(θ)
-//
-// Bu yerda:
-//   β — manbaning haqiqiy burchak pozitsiyasi
-//   θ — manbaning ko'rinuvchi burchak pozitsiyasi
-//   δ(θ) — burilish burchagi
-//
-// Linza tenglamasi ikki tasvir beradi:
-//   - Birlamchi tasvir (primary): θ > θ_E
-//   - Ikkilamchi tasvir (secondary): θ < θ_E (kichikroq va xiraroq)
-//
-// Gravitatsion linzalash DOIM ikkita tasvir beradi —
-// bu Interstellar'da diskning ham yuqorida, ham pastda ko'rinishini
-// tushuntiradi.
-// ─────────────────────────────────────────────────────────────────────────────
+// Fazovaqt egriligi sababli juda xira energiya buzilishi
 
-// β → θ konversiyasi (haqiqiy → ko'rinuvchi)
-// Approksimatsiya: point mass linza uchun analitik yechim
-float lensEquation(float beta, float einsteinRadius) {
-  float thetaE2 = einsteinRadius * einsteinRadius;
+vec3 gravitationalGlow(float closestApproach, float rPhoton, float rHorizon, float time) {
+  float photonDist = abs(closestApproach - rPhoton) / rPhoton;
 
-  // θ = (β ± √(β² + 4θ_E²)) / 2
-  // '+' — birlamchi tasvir, '-' — ikkilamchi tasvir
-  float discriminant = beta * beta + 4.0 * thetaE2;
+  float thermalIntensity = exp(-photonDist * photonDist * 60.0) * 0.012;
+  float haloIntensity = exp(-photonDist * photonDist * 12.0) * 0.004;
 
-  // Birlamchi tasvir (kattaroq, yorqinroq)
-  float thetaPrimary = 0.5 * (beta + sqrt(discriminant));
+  float innerFactor = smoothstep(rPhoton * 1.3, rPhoton * 0.95, closestApproach);
 
-  return thetaPrimary;
-}
+  vec3 glowColor = mix(
+    vec3(0.7, 0.5, 0.2),
+    vec3(0.6, 0.65, 0.9),
+    innerFactor
+  ) * thermalIntensity;
 
-// Ikkilamchi tasvir
-float lensEquationSecondary(float beta, float einsteinRadius) {
-  float thetaE2 = einsteinRadius * einsteinRadius;
-  float discriminant = beta * beta + 4.0 * thetaE2;
+  glowColor += vec3(0.5, 0.4, 0.2) * haloIntensity;
 
-  // '-' belgisi — ikkilamchi tasvir (kichikroq, xiraroq)
-  float thetaSecondary = 0.5 * (beta - sqrt(discriminant));
-
-  return abs(thetaSecondary);  // Manfiy bo'lishi mumkin
+  return glowColor;
 }
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IV. KUCHAYISH (MAGNIFICATION)
+// IV. SPHERICAL DEPTH CUE
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// ── Formula #16 ──
-//
-// μ = θ/β · dθ/dβ
-//
-// Point mass linza uchun:
-// μ = u² + 2 / (u · √(u² + 4))
-// bu yerda u = β / θ_E
-//
-// Fizik ma'no:
-//   Linzalash tasvirni kattalashtirib ko'rsatadi.
-//   β → 0 da (manbaning haqiqiy pozitsiyasi linza ortida):
-//     μ → ∞ (cheksiz kuchayish — nazariy)
-//   Amalda "cheksiz" bo'lmaydi — manba nuqta emas.
-//
-// Simulyatsiyada: foton halqasi yaqinida yorqinlik oshadi
-// ─────────────────────────────────────────────────────────────────────────────
+// 3D sferik ko'rinish uchun yorqinlik gradienti
 
-float lensMagnification(float beta, float einsteinRadius) {
-  if (einsteinRadius < 0.001) return 1.0;
+float sphericalDepthCue(float closestApproach, float rPhoton) {
+  float normalizedDist = max((closestApproach - rPhoton) / rPhoton, 0.0);
 
-  float u = abs(beta) / einsteinRadius;
+  float edgeBright = exp(-normalizedDist * 8.0) * 0.1;
+  float depthGrad = exp(-normalizedDist * normalizedDist * 3.0) * 0.08;
 
-  // u = 0 da cheksiz kuchayish — cheklash kerak
-  if (u < 0.001) u = 0.001;
-
-  float u2 = u * u;
-
-  // μ = (u² + 2) / (u · √(u² + 4))
-  float magnification = (u2 + 2.0) / (u * sqrt(u2 + 4.0));
-
-  return magnification;
-}
-
-// Kuchayishni vizualizatsiya uchun cheklash
-float clampedMagnification(float beta, float einsteinRadius, float maxMagnification) {
-  float mu = lensMagnification(beta, einsteinRadius);
-  return min(mu, maxMagnification);
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V. FOTON HALQA PORLASHI
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Foton sfera (r = 1.5 Rs = 3M) yaqinida nurlar qora tuynuk
-// atrofida bir yoki bir necha marta aylanib o'tadi.
-//
-// Bu "foton halqasi" — Interstellar'dagi eng yorqin chiziq.
-// Aslida bir necha halqa: n=1 (bir aylanish), n=2 (ikki), ...
-// Har keyingi halqa eksponensial ravishda xiraroq va ingichka.
-//
-// Hisoblash: nurning minimal yaqinlashuv radiusiga qarab
-// foton halqa intensivligini baholash
-// ─────────────────────────────────────────────────────────────────────────────
-
-float photonRingGlow(
-  float closestApproach,  // Nurning qora tuynukka eng yaqin kelgan nuqtasi
-  float photonSphereR,    // Foton sfera radiusi (3M)
-  float ringIntensity     // Umumiy yorqinlik kuchi
-) {
-  float delta = abs(closestApproach - photonSphereR);
-  float relDelta = delta / max(photonSphereR, 0.001);
-
-  // Keng yumshoq tashqi glow (halo)
-  float glow  = exp(-relDelta * relDelta * 60.0)  * ringIntensity;
-
-  // Birlamchi ingichka halqa — Interstellar'dagi porlab turuvchi chiziq
-  float ring1 = exp(-relDelta * relDelta * 800.0) * ringIntensity * 5.0;
-
-  // Ikkilamchi sub-ring (nurlar ikki marta aylanib o'tgan)
-  float delta2 = abs(closestApproach - photonSphereR * 1.004);
-  float rel2   = delta2 / max(photonSphereR, 0.001);
-  float ring2  = exp(-rel2 * rel2 * 4000.0) * ringIntensity * 2.0;
-
-  return glow + ring1 + ring2;
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VI. YULDUZ FONI LENSING — ray marching natijasi
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Bu funksiya ray marching natijasida "qochgan" nurning
-// yakuniy yo'nalishiga cubemap lookup qo'llaydi.
-//
-// Nur egrilib ketgani uchun u boshqa yo'nalishga qaragan yulduzni
-// ko'rsatadi — bu gravitatsion linzalash effekti.
-//
-// Foton halqa yaqinida kuchayish (magnification) qo'shiladi
-// ─────────────────────────────────────────────────────────────────────────────
-
-vec3 lensedStarfield(
-  vec3 finalRayDir,       // Nurning yakuniy yo'nalishi (egrilgandan keyin)
-  float closestApproach,  // Eng yaqin kelish radiusi
-  float photonSphereR,    // Foton sfera radiusi
-  float photonRingIntensity, // Foton halqa yorqinligi
-  samplerCube starfieldCube  // Yulduzli osmon cubemap
-) {
-  // ── Formula #35: Cubemap lookup ──
-  // Egrilgan nur'ning yakuniy yo'nalishi bo'yicha yulduz tanlash
-  vec3 starColor = textureCube(starfieldCube, finalRayDir).rgb;
-
-  // ── Foton halqa porlashi ──
-  float ringGlow = photonRingGlow(closestApproach, photonSphereR, photonRingIntensity);
-
-  // Foton halqasi oltin-oq rangda porlaydi
-  vec3 ringColor = vec3(1.0, 0.85, 0.6) * ringGlow;
-
-  // ── Kuchayish — foton sfera yaqinida yulduzlar yorqinroq ──
-  float approachRatio = photonSphereR / max(closestApproach, photonSphereR * 0.5);
-  float magnification = 1.0 + pow(approachRatio, 8.0) * 3.0;
-
-  return starColor * magnification + ringColor;
+  return edgeBright + depthGrad;
 }

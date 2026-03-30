@@ -106,6 +106,7 @@ export default class ShaderLoader {
       'doppler.glsl',
       'lensing.glsl',
       'tonemap.glsl',
+      'gravity.glsl',
     ];
 
     await Promise.all(
