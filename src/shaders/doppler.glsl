@@ -92,15 +92,20 @@ vec4 applyDoppler(vec4 diskCol, vec3 hitPt, float hitR) {
   float g = dopplerFactor(hitPt, u_cameraPos, vel);
   float beam = dopplerBeaming(g, u_beamingExp);
 
+  // Strong directional asymmetry
+  vec2 dp = hitPt.xz;
+  vec3 orbDir = normalize(vec3(-dp.y, 0.0, dp.x));
+  vec3 toObs = normalize(u_cameraPos - hitPt);
+  float dopplerShift = dot(orbDir, toObs);
+  float boost = mix(0.6, 1.6, smoothstep(-1.0, 1.0, dopplerShift));
+
   float grav = 1.0;
   if (u_gravRedshift > 0.5) {
     grav = gravRedshiftFactor(hitR, u_Rs);
   }
 
-  float totalShift = g * grav;
-  vec3 shifted = dopplerColorShift(diskCol.rgb, totalShift, u_colorShift);
-  float brightness = beam * grav * u_brightnessBoost;
-  shifted *= brightness;
+  float brightness = beam * grav * u_brightnessBoost * boost;
+  vec3 shifted = diskCol.rgb * brightness;
 
   return vec4(shifted, diskCol.a * min(brightness, 1.0));
 }

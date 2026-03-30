@@ -103,15 +103,23 @@ float diskNoise(vec2 diskPos, float time) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 vec4 computeDiskColor(float hitR, vec3 hitPoint) {
+  float outerR = u_diskOuterRadius * 2.5;
   float temp = diskTemperature(hitR, u_diskInnerRadius);
   float lum  = diskLuminosity(hitR, u_diskInnerRadius);
 
-  // Rang
-  vec3 bbColor = blackbodyColor(temp);
-  vec3 mapColor = temp < 0.5
-    ? mix(u_diskColorCool, u_diskColorWarm, temp * 2.0)
-    : mix(u_diskColorWarm, u_diskColorHot, (temp - 0.5) * 2.0);
-  vec3 color = mix(mapColor, bbColor, 0.4);
+  // Rang — dirty warm palitra
+  float angle = atan(hitPoint.z, hitPoint.x);
+  vec3 innerColor = vec3(1.0, 0.88, 0.6);
+  vec3 midColor   = vec3(0.9, 0.55, 0.15);
+  vec3 outerColor = vec3(0.35, 0.15, 0.04);
+
+  float t = clamp((hitR - u_diskInnerRadius) / (outerR - u_diskInnerRadius), 0.0, 1.0);
+  vec3 baseColor = mix(innerColor, mix(midColor, outerColor, t), t);
+
+  float dirt = fbm3D(vec3(hitR * 1.5, angle * 0.5, 0.0), max(u_noiseOctaves - 2, 2), u_noiseLacunarity, u_noisePersistence) * 0.25;
+  baseColor *= (0.85 + dirt);
+
+  vec3 color = vec3(1.0);
 
   // Aylanish
   vec2 dp = hitPoint.xz;
@@ -123,14 +131,33 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   float n = diskNoise(rp, u_time);
   float nFactor = 0.6 + n * 0.4;
 
-  // Edge fade
-  float radPos = (hitR - u_diskInnerRadius) / (u_diskOuterRadius - u_diskInnerRadius);
-  float fade = smoothstep(0.0, 0.05, radPos) * (1.0 - smoothstep(0.7, 1.0, radPos));
+  // Edge fade — soft outer falloff + flared vertical density
+  float radPos = (hitR - u_diskInnerRadius) / (outerR - u_diskInnerRadius);
+  float innerFade = smoothstep(0.0, 0.05, radPos);
+  float edgeFade = 1.0 - smoothstep(outerR * 0.7, outerR, hitR);
+
+  // Vertical density — flared scale height (thin at center, puffy at edges)
+  float scaleHeight = u_diskThickness * 2.0;
+  scaleHeight *= (1.0 + hitR * 0.3);
+  float verticalDensity = exp(-hitPoint.y * hitPoint.y / (scaleHeight * scaleHeight));
+
+  float fade = innerFade * edgeFade * verticalDensity;
 
   float finalLum = lum * max(nFactor, 0.1) * fade;
   // diskLuminosity max ~0.056, shuning uchun hdr kuchli bo'lishi shart
   float hdr = 50.0 + temp * 80.0;
   color *= finalLum * hdr;
+
+  // Turbulence + dark gaps
+  float turbulence = fbm3D(vec3(angle * 8.0, hitR * 5.0, u_time * 0.1), max(u_noiseOctaves - 2, 2), u_noiseLacunarity, u_noisePersistence);
+  turbulence = 0.4 + 0.6 * turbulence;
+
+  float gaps = smoothstep(0.3, 0.5, sin(angle * 14.0 + fbm3D(vec3(hitR, angle, 0.0), max(u_noiseOctaves - 2, 2), u_noiseLacunarity, u_noisePersistence) * 4.0));
+
+  color *= turbulence * mix(0.3, 1.0, gaps);
+
+  // Warm color tint — applied last to survive HDR/tonemapping
+  color *= baseColor;
 
   return vec4(color, finalLum * fade);
 }
