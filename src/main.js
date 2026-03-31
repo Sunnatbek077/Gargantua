@@ -57,25 +57,7 @@ async function bootstrap() {
     setLoadingStatus('Render boshlanmoqda...');
     await app.init(shaders);
 
-    // ── 4. HUD va Controls ulash ──
-    const qSlider = document.getElementById('q-slider');
-    const qVal = document.getElementById('q-val');
-    if (qSlider) {
-      qSlider.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        qVal.textContent = val.toFixed(2);
-        app.setBlackHoleParams({ charge: val });
-      });
-    }
-
-    app.onUpdate(() => {
-      document.getElementById('hud-th').textContent = `Hawking Temp (T_H): ${PhysicsConfig.blackHole.hawkingTemperature.toExponential(4)} K`;
-      document.getElementById('hud-s').textContent  = `Entropy (S): ${PhysicsConfig.blackHole.entropyBekenstein.toExponential(4)} J/K`;
-      document.getElementById('hud-tev').textContent= `Evap Time (t_ev): ${PhysicsConfig.blackHole.evaporationTime.toExponential(4)} yrs`;
-      document.getElementById('hud-p').textContent  = `Hawking Power (P): ${PhysicsConfig.blackHole.hawkingPower.toExponential(4)} W`;
-      document.getElementById('hud-r').textContent  = `Horizons (r+, r-): ${PhysicsConfig.blackHole.rOuterHorizon.toFixed(3)}, ${PhysicsConfig.blackHole.rInnerHorizon.toFixed(3)} Rs`;
-      document.getElementById('hud-bondi').textContent = `Bondi Rate (Ṁ): ${PhysicsConfig.astrophysics.bondiAccretionRate.toExponential(4)} kg/s`;
-    });
+    // ── 4. HUD va Controls olib tashlandi ──
 
     hideLoadingScreen();
     app.start();
