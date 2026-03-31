@@ -454,9 +454,9 @@ float fineRings(float r, float theta, float ringMod) {
 // Kam chastota — 3-4 ta katta bo'shliq.
 
 float ringGaps(float r) {
-  // Past chastota — keng bo'shliqlar
-  float gap1 = smoothstep(0.0, 0.08, abs(sin(r * 4.5 + 1.0)));
-  float gap2 = smoothstep(0.0, 0.05, abs(sin(r * 7.0 + 2.3)));
+  // Past chastota — yumshoq keng bo'shliqlar
+  float gap1 = smoothstep(0.0, 0.30, abs(sin(r * 4.5 + 1.0)));
+  float gap2 = smoothstep(0.0, 0.25, abs(sin(r * 7.0 + 2.3)));
 
   // Ikkalasini birlashtirish
   return gap1 * gap2;
@@ -623,8 +623,8 @@ float azimuthalDarkLanes(float r, float theta, float time) {
     fbm3D(vec3(r * 1.5, theta * 0.2, time * 0.03), 2, 2.0, 0.5) * 3.5
   );
 
-  // Qorong'i yo'lak sifatida formatish
-  float lanes = smoothstep(-0.15, 0.35, spiralDark);
+  // Yumshoq qorong'i yo'lak (keng, silliq o'tish)
+  float lanes = smoothstep(-0.5, 0.6, spiralDark);
 
   return lanes;
 }
@@ -641,7 +641,7 @@ float radialDarkLanes(float r, float theta, float time) {
     vec3(theta * 5.0, r * 0.4, time * 0.04),
     2, 2.0, 0.4
   );
-  float lanes = smoothstep(-0.35, 0.25, n);
+  float lanes = smoothstep(-0.6, 0.5, n);
   return lanes;
 }
 
@@ -686,8 +686,8 @@ float innerEdge(float r, float rISCO) {
   float dist = (r - rISCO) / rISCO;
   if (dist < 0.0) return 0.0;
 
-  // Juda nozik cho'qqi — sigma = 0.03
-  float edge = exp(-dist * dist / 0.001);
+  // Nozik cho'qqi — sigma = 0.05
+  float edge = exp(-dist * dist / 0.003);
 
   return edge;
 }
@@ -749,7 +749,7 @@ float combinedCorona(float r, float theta, float time, float rISCO) {
   float halo    = innerHalo(r, rISCO);
   float coronal = coronalFilaments(r, theta, time, rISCO);
 
-  return edge * 2.0 + halo + coronal * 0.8;
+  return edge * 1.5 + halo * 0.8 + coronal * 0.5;
 }
 
 
@@ -934,8 +934,8 @@ vec2 computeDiskNoise(float r, float theta, float time, float outerR) {
   // Normallash
   baseIntensity = clamp(baseIntensity / 0.9, 0.0, 1.0);
 
-  // Qorong'i yo'laklar — multiplikativ (qoraytiradi)
-  baseIntensity *= mix(0.05, 1.0, darkLanes);
+  // Qorong'i yo'laklar — o'rtacha (50% gacha qoraytiradi)
+  baseIntensity *= mix(0.50, 1.0, darkLanes);
 
   // Tashqi tolalar — multiplikativ (chegarada so'ndiradi)
   baseIntensity *= wisps;
@@ -944,8 +944,8 @@ vec2 computeDiskNoise(float r, float theta, float time, float outerR) {
   baseIntensity += corona * 0.15;
   baseIntensity = clamp(baseIntensity, 0.0, 1.0);
 
-  // Kontrast kuchaytirish — yakuniy
-  baseIntensity = smoothstep(0.08, 0.92, baseIntensity);
+  // Kontrast kuchaytirish — yumshoq (silliq disk uchun)
+  baseIntensity = smoothstep(0.12, 0.88, baseIntensity);
 
   // Issiqlik — filament va hotspot asosida
   float hotness = smoothstep(0.65, 1.0, filaments) * hotSpots;
@@ -999,10 +999,13 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   float lum  = diskLuminosityExtended(hitR, u_diskInnerRadius, outerR);
 
   // ── Radial pozitsiya [0=ichki, 1=tashqi] ──
-  float t = clamp(
+  float tLinear = clamp(
     (hitR - u_diskInnerRadius) / (outerR - u_diskInnerRadius),
     0.0, 1.0
   );
+  // Nolineer xaritalash: ko'rinadigan disk (t=0-0.3) ranglar palitrasi bo'ylab
+  // kengaytiriladi. pow(0.29, 0.35) ≈ 0.67 — endi amber/jigarrang ham ko'rinadi.
+  float t = pow(tLinear, 0.35);
 
   // ══════════════════════════════════════════
   // RANG HISOBLASH
@@ -1031,8 +1034,9 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   // YORQINLIK MODULYATSIYASI
   // ══════════════════════════════════════════
 
-  // Noise modulyatsiya — qorong'i bo'shliqlar 3% gacha tushadi
-  float nFactor = 0.03 + intensity * 0.97;
+  // Noise modulyatsiya — qorong'i bo'shliqlar 18% gacha tushadi
+  // Filamentlar ko'rinadigan, lekin zebra bo'lmaydigan balans
+  float nFactor = 0.18 + intensity * 0.82;
 
   // Issiq tolalar — rang oqqa yaqinlashadi
   vec3 finalColor = hotStreakTint(baseColor, hotness, t);
@@ -1078,18 +1082,21 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   float finalLum = lum * nFactor * fade;
 
   // HDR multiplikator — temp ga proporsional
-  float hdr = 25.0 + temp * 35.0;
+  // Ichki cho'qqi: 0.056 * 95 * 2.5 = 13.3 → ACES → ~0.98 (issiq oq)
+  // O'rta disk:    0.02 * 55 * 1.0 = 1.1 → ACES → ~0.60 (oltin-amber)
+  // Tashqi disk:   0.008 * 48 * 1.0 = 0.38 → ACES → ~0.30 (jigarrang)
+  float hdr = 45.0 + temp * 50.0;
 
-  // Ichki korona qo'shimcha porlash
+  // Ichki korona qo'shimcha porlash — kuchli ichki qirra
   float coronaBoost = combinedCorona(hitR, rotAngle, u_time, u_diskInnerRadius);
-  float innerBoost = 1.0 + coronaBoost * 1.5;
+  float innerBoost = 1.0 + coronaBoost * 2.5;
 
   // Yakuniy HDR rang
   vec3 color = finalColor * finalLum * hdr * innerBoost;
 
-  // Ichki qirra qo'shimcha oq porlash (additiv)
+  // Ichki qirra qo'shimcha oq porlash (additiv) — juda yorqin
   float edgeGlow = innerEdge(hitR, u_diskInnerRadius);
-  color += vec3(1.0, 0.95, 0.82) * edgeGlow * lum * hdr * 3.0;
+  color += vec3(1.0, 0.95, 0.82) * edgeGlow * lum * hdr * 5.0;
 
   // Alpha — shaffoflik
   float alpha = finalLum * fade;
@@ -1141,8 +1148,8 @@ float diskDensity(vec3 pos) {
   float turb = fbm3D(p, max(u_noiseOctaves - 1, 2), u_noiseLacunarity, u_noisePersistence);
   turb = turb * 0.5 + 0.5;
 
-  // Kontrast — qorong'i bo'shliqlar aniq
-  turb = 0.15 + 0.85 * smoothstep(0.2, 0.8, turb);
+  // Yumshoq kontrast
+  turb = 0.40 + 0.60 * smoothstep(0.25, 0.75, turb);
 
   // Halqa tuzilmasi
   float ringEffect = ringGaps(r);
@@ -1169,11 +1176,12 @@ vec3 diskEmission(vec3 pos, float density) {
   float temp = diskTemperature(r, u_diskInnerRadius);
   float lum = diskLuminosityExtended(r, u_diskInnerRadius, outerR);
 
-  // ── Rang xaritasi ──
-  float t = clamp(
+  // ── Rang xaritasi (nolineer, computeDiskColor bilan bir xil) ──
+  float tLinear = clamp(
     (r - u_diskInnerRadius) / (outerR - u_diskInnerRadius),
     0.0, 1.0
   );
+  float t = pow(tLinear, 0.35);
   vec3 col = diskBaseColor(t);
 
   // ── Anizotropik filament tuzilma ──
@@ -1190,14 +1198,14 @@ vec3 diskEmission(vec3 pos, float density) {
   streaks = smoothstep(0.2, 0.8, streaks);
 
   // Kontrast modullatsiya
-  col *= (0.05 + 0.95 * streaks);
+  col *= (0.35 + 0.65 * streaks);
 
   // Halqa tuzilmasi
   float ringEffect = ringGaps(r);
   col *= ringEffect;
 
   // ── HDR yorqinlik ──
-  float hdr = 25.0 + temp * 35.0;
+  float hdr = 45.0 + temp * 50.0;
 
   // Ichki korona boost
   float dist = (r - u_diskInnerRadius) / u_diskInnerRadius;
