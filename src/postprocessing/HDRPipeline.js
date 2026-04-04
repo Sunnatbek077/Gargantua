@@ -54,6 +54,7 @@ export default class HDRPipeline {
         u_aces_c: { value: aces.c },
         u_aces_d: { value: aces.d },
         u_aces_e: { value: aces.e },
+        u_vignetteIntensity: { value: 0.55 },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -70,7 +71,16 @@ export default class HDRPipeline {
         uniform float u_whitePoint;
         uniform int u_method;
         uniform float u_aces_a, u_aces_b, u_aces_c, u_aces_d, u_aces_e;
+        uniform float u_vignetteIntensity;
         varying vec2 vUv;
+
+        // ── Vignette — kinematic frame edge darkening ──
+        float vignette(vec2 uv) {
+          vec2 d = abs(uv - 0.5) * 2.0;
+          d = pow(d, vec2(0.8));
+          float dist = pow(d.x + d.y, 1.0 / 0.8);
+          return 1.0 - smoothstep(0.3, 1.0, dist) * u_vignetteIntensity;
+        }
 
         // ── Formula #26: ACES Filmic ──
         vec3 acesToneMap(vec3 x) {
@@ -118,6 +128,9 @@ export default class HDRPipeline {
 
           // 3. Gamma korreksiya (Formula #37)
           vec3 corrected = pow(max(mapped, vec3(0.0)), vec3(1.0 / u_gamma));
+
+          // 4. Vignette — IMAX kinematic frame
+          corrected *= vignette(vUv);
 
           gl_FragColor = vec4(corrected, 1.0);
         }

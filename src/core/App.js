@@ -34,6 +34,9 @@ import Clock from './Clock.js';
 import Camera from './Camera.js';
 import Scene from './Scene.js';
 import Renderer from './Renderer.js';
+import BloomPass from '../postprocessing/BloomPass.js';
+import HDRPipeline from '../postprocessing/HDRPipeline.js';
+import FilmGrain from '../postprocessing/FilmGrain.js';
 
 export default class App {
 
@@ -76,6 +79,14 @@ export default class App {
     this._camera = new Camera(this._canvas);
     this._scene = new Scene();
     this._renderer = new Renderer(this._canvas);
+
+    // ── Post-processing ──
+    this._bloom = null;
+    this._hdr = null;
+    this._grain = null;
+    this._postFX = null;
+    this._lastRenderWidth = 0;
+    this._lastRenderHeight = 0;
 
     // ── Render loop ──
     this._animationFrameId = null;
@@ -133,6 +144,43 @@ export default class App {
     // ── Ekran o'lchamini sozlash ──
     const size = this._renderer.renderSize;
     this._scene.updateResolution(size.width, size.height);
+
+    // ── Post-processing pipeline ──
+    const nativeRenderer = this._renderer.native;
+    this._bloom = new BloomPass(nativeRenderer, size.width, size.height);
+    this._bloom.setThreshold(0.8);   // HDR space: catch inner disk + hot spots
+    this._bloom.setIntensity(1.5);   // Controlled glow — ACES compresses peaks
+    this._hdr = new HDRPipeline(nativeRenderer);
+    this._hdr.setExposure(1.8);      // Match previous hardcoded exposure
+    this._grain = new FilmGrain(nativeRenderer);
+    this._lastRenderWidth = size.width;
+    this._lastRenderHeight = size.height;
+
+    // Pipeline orchestrator — called by Renderer.renderWithPostFX
+    this._postFX = {
+      process: (renderer, targets, width, height) => {
+        const elapsed = this._clock.elapsed;
+
+        // 1. Bloom: main → post (scene + bloom, still HDR)
+        if (this._bloom.enabled) {
+          this._bloom.render(targets.main, targets.post);
+        }
+
+        // 2. Tone mapping + vignette: HDR → SDR
+        const tmIn = this._bloom.enabled ? targets.post : targets.main;
+        const grainEnabled = this._grain.enabled;
+        if (grainEnabled) {
+          // Tone map to intermediate, grain will output to screen
+          const tmOut = (tmIn === targets.post) ? targets.main : targets.post;
+          this._hdr.render(tmIn, tmOut);
+          // 3. Film grain → screen
+          this._grain.render(tmOut, null, elapsed);
+        } else {
+          // Tone map directly to screen
+          this._hdr.render(tmIn, null);
+        }
+      }
+    };
 
     // ── Tayyor ──
     this._initialized = true;
@@ -237,8 +285,20 @@ export default class App {
       this._onUpdateCallbacks[i](delta, elapsed, this);
     }
 
-    // 5. Render
-    this._renderer.render(this._scene.native, this._camera.native);
+    // 5. Render with HDR bloom pipeline
+    this._renderer.renderWithPostFX(
+      this._scene.native,
+      this._camera.native,
+      this._postFX
+    );
+
+    // 5b. Resize bloom if render size changed
+    const currentSize = this._renderer.renderSize;
+    if (this._lastRenderWidth !== currentSize.width || this._lastRenderHeight !== currentSize.height) {
+      this._bloom.resize(currentSize.width, currentSize.height);
+      this._lastRenderWidth = currentSize.width;
+      this._lastRenderHeight = currentSize.height;
+    }
 
     // 6. Adaptiv sifat tekshiruv
     const newQuality = this._renderer.adaptQuality(
@@ -558,6 +618,9 @@ export default class App {
    */
   dispose() {
     this.stop();
+    if (this._bloom) this._bloom.dispose();
+    if (this._hdr) this._hdr.dispose();
+    if (this._grain) this._grain.dispose();
     this._scene.dispose();
     this._camera.dispose();
     this._renderer.dispose();

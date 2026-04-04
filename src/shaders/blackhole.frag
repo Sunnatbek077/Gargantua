@@ -280,9 +280,9 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
       }
     }
 
-    // ── Qochdi — yulduz foni + Event Horizon Depth Effects (lensing.glsl) ──
+    // ── Qochdi — Event Horizon Depth Effects (lensing.glsl) ──
     if (newR > u_escapeRadius) {
-      vec3 starColor = textureCube(u_starfieldCube, rayDir).rgb;
+      vec3 starColor = vec3(0.0);
 
       float ringGlow = photonRingGlow(result.closestApproach, u_rPhotonSphere);
       vec3 ringColor = vec3(1.0, 0.85, 0.6) * ringGlow;
@@ -305,7 +305,7 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
 
   // Loop tugadi lekin bitmaganligi — qochgan deb hisoblaymiz
   if (!result.captured && result.color == vec3(0.0)) {
-    vec3 starColor = textureCube(u_starfieldCube, rayDir).rgb;
+    vec3 starColor = vec3(0.0);
     float ringGlow = photonRingGlow(result.closestApproach, u_rPhotonSphere);
     vec3 ringColor = vec3(1.0, 0.85, 0.6) * ringGlow;
 
@@ -343,30 +343,7 @@ void main() {
   // ── Ray marching ──
   RayResult result = marchRay(rayPos, rayDir);
 
-  vec3 color = result.color;
-
-  // ── Post-processing pipeline (tonemap.glsl) ──
-
-  // 1. Ekspozitsiya
-  color *= 1.8;
-
-  // 2. ACES Tone Mapping (Formula #26)
-  color = acesToneMap(color);
-
-  // 3. Gamma korreksiya (Formula #37)
-  color = gammaCorrect(color);
-
-  // 4. Vignette
-  color *= vignette(vUv);
-
-  // 5. Film grain (Formula #29)
-  float grain = filmGrain(vUv, u_time);
-  float lum = calcLuminance(color);
-  float grainResponse = mix(1.0, 0.3, smoothstep(0.0, 0.5, lum));
-  color += grain * grainResponse;
-
-  // 6. Yakuniy clamp
-  color = clamp(color, 0.0, 1.0);
-
-  gl_FragColor = vec4(color, 1.0);
+  // Raw HDR output — post-processing pipeline handles
+  // bloom, tone mapping, vignette, and grain in separate passes
+  gl_FragColor = vec4(result.color, 1.0);
 }

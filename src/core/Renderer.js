@@ -135,6 +135,13 @@ export default class Renderer {
       THREE.HalfFloatType
     );
 
+    // ── Post-processing intermediate buffer (full resolution) ──
+    // Bloom composite yoziladi, keyin tone mapping o'qiydi
+    this._renderTargets.post = this._createTarget(
+      cfg.main.scale,
+      THREE.HalfFloatType
+    );
+
     // ── Bloom: Yorqin piksellar ──
     this._renderTargets.bright = this._createTarget(
       cfg.bright.scale,
