@@ -117,6 +117,50 @@ varying vec2 vUv;
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CINEMATIC BACKGROUND — deep space haze & dust
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Gravitatsion linzalash orqali kuchaytirilgan kosmik fon.
+// Juda nozik — faqat "bo'shliq emas, chuqurlik" hissini beradi.
+// Ray marching'dan keyin escaped ray yo'nalishi bilan chaqiriladi.
+
+vec3 cinematicBackground(vec3 dir) {
+  // ── I. Vertical gradient — disk tekisligi yaqinida iliq, yuqorida sovuq ──
+  // abs(dir.y) = 0 disk tekisligida, 1 qutblarda
+  float vertFade = abs(dir.y);
+
+  // Sovuq: yuqori/pastda — juda xira ko'k-binafsha
+  vec3 coolDark = vec3(0.002, 0.0015, 0.005);
+  // Iliq: disk tekisligi yaqinida — disk nurlanishining sochilgan yorug'ligi
+  vec3 warmDark = vec3(0.005, 0.003, 0.001);
+
+  // Asosiy gradient: disk tekisligiga yaqin = iliq, uzoq = sovuq
+  vec3 base = mix(warmDark, coolDark, smoothstep(0.0, 0.45, vertFade));
+
+  // ── II. Ultra-past chastotali chang tuzilmasi ──
+  // Faqat 2 oktava, juda katta masshtab — procedural ko'rinmasin.
+  // Natija: keng, silliq yorqinlik variatsiyalari kosmik fonda.
+  float dust = fbm3D(dir * 0.8, 2, 2.0, 0.5);
+  // [-1,1] → [0,1] va keskin qoraytirish — faqat eng yorqin cho'qqilar qoladi
+  dust = dust * 0.5 + 0.5;
+  dust = dust * dust * dust;  // pow(3) — 90%+ piksellar deyarli nolga tushadi
+
+  // Changning rangi: biroz issiq, lekin juda xira
+  base += vec3(0.003, 0.002, 0.004) * dust;
+
+  // ── III. Disk tekisligi yaqinidagi tarqalgan yorug'lik ──
+  // Accretion disk yorug'ligining kengaygan galosi — juda nozik
+  float diskScatter = exp(-vertFade * 6.0);
+  // Azimuthal variatsiya — har tomondan bir xil emas
+  float azimuth = atan(dir.z, dir.x);
+  float azVar = 0.85 + 0.15 * sin(azimuth * 2.0 + 0.7);
+  base += vec3(0.006, 0.003, 0.001) * diskScatter * azVar;
+
+  return base;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // RAY MARCHING — asosiy simulyatsiya tsikli
 // ═══════════════════════════════════════════════════════════════════════════════
 //
@@ -282,7 +326,8 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
 
     // ── Qochdi — Event Horizon Depth Effects (lensing.glsl) ──
     if (newR > u_escapeRadius) {
-      vec3 starColor = vec3(0.0);
+      // Gravitatsion burilishdan keyingi yo'nalish bo'yicha kosmik fon
+      vec3 starColor = cinematicBackground(rayDir);
 
       float ringGlow = photonRingGlow(result.closestApproach, u_rPhotonSphere);
       vec3 ringColor = vec3(1.0, 0.85, 0.6) * ringGlow;
@@ -305,7 +350,7 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
 
   // Loop tugadi lekin bitmaganligi — qochgan deb hisoblaymiz
   if (!result.captured && result.color == vec3(0.0)) {
-    vec3 starColor = vec3(0.0);
+    vec3 starColor = cinematicBackground(rayDir);
     float ringGlow = photonRingGlow(result.closestApproach, u_rPhotonSphere);
     vec3 ringColor = vec3(1.0, 0.85, 0.6) * ringGlow;
 
