@@ -36,6 +36,7 @@ import Scene from './Scene.js';
 import Renderer from './Renderer.js';
 import BloomPass from '../postprocessing/BloomPass.js';
 import HDRPipeline from '../postprocessing/HDRPipeline.js';
+import ColorGrading from '../postprocessing/ColorGrading.js';
 import FilmGrain from '../postprocessing/FilmGrain.js';
 
 export default class App {
@@ -83,6 +84,7 @@ export default class App {
     // ── Post-processing ──
     this._bloom = null;
     this._hdr = null;
+    this._colorGrading = null;
     this._grain = null;
     this._postFX = null;
     this._lastRenderWidth = 0;
@@ -148,15 +150,17 @@ export default class App {
     // ── Post-processing pipeline ──
     const nativeRenderer = this._renderer.native;
     this._bloom = new BloomPass(nativeRenderer, size.width, size.height);
-    this._bloom.setThreshold(0.4);   // Lower: more disk contributes, wider softer glow
-    this._bloom.setIntensity(1.0);   // Pulled back to avoid blowing out inner disk
+    this._bloom.setThreshold(0.6);   // Mid-range: catches hot disk, preserves inner structure
+    this._bloom.setIntensity(0.7);   // Restrained: additive bloom won't re-clip highlights
     this._hdr = new HDRPipeline(nativeRenderer);
-    this._hdr.setExposure(1.4);      // Reduced: recover highlight detail in hot regions
+    this._hdr.setExposure(1.1);      // Pulled back: inner disk stays in ACES rolloff, not plateau
+    this._colorGrading = new ColorGrading(nativeRenderer);
     this._grain = new FilmGrain(nativeRenderer);
     this._lastRenderWidth = size.width;
     this._lastRenderHeight = size.height;
 
     // Pipeline orchestrator — called by Renderer.renderWithPostFX
+    // Chain: bloom (HDR) → tone map (HDR→SDR) → color grade (SDR) → grain (SDR) → screen
     this._postFX = {
       process: (renderer, targets, width, height) => {
         const elapsed = this._clock.elapsed;
@@ -166,19 +170,36 @@ export default class App {
           this._bloom.render(targets.main, targets.post);
         }
 
-        // 2. Tone mapping + vignette: HDR → SDR
-        const tmIn = this._bloom.enabled ? targets.post : targets.main;
+        // Determine how many SDR passes remain after tone mapping
+        const gradeEnabled = this._colorGrading.enabled;
         const grainEnabled = this._grain.enabled;
-        if (grainEnabled) {
-          // Tone map to intermediate, grain will output to screen
-          const tmOut = (tmIn === targets.post) ? targets.main : targets.post;
-          this._hdr.render(tmIn, tmOut);
-          // 3. Film grain → screen
-          this._grain.render(tmOut, null, elapsed);
-        } else {
-          // Tone map directly to screen
-          this._hdr.render(tmIn, null);
+
+        // 2. Tone mapping: HDR → SDR
+        const tmIn = this._bloom.enabled ? targets.post : targets.main;
+        const needsBuffer = gradeEnabled || grainEnabled;
+        const tmOut = needsBuffer
+          ? ((tmIn === targets.post) ? targets.main : targets.post)
+          : null;  // direct to screen if nothing follows
+        this._hdr.render(tmIn, tmOut);
+
+        if (!needsBuffer) return;
+
+        let current = tmOut;
+        let other = (current === targets.main) ? targets.post : targets.main;
+
+        // 3. Color grading (SDR)
+        if (gradeEnabled) {
+          const gradeOut = grainEnabled ? other : null;
+          this._colorGrading.render(current, gradeOut);
+          if (grainEnabled) {
+            const tmp = current; current = other; other = tmp;
+          } else {
+            return;
+          }
         }
+
+        // 4. Film grain → screen
+        this._grain.render(current, null, elapsed);
       }
     };
 
@@ -620,6 +641,7 @@ export default class App {
     this.stop();
     if (this._bloom) this._bloom.dispose();
     if (this._hdr) this._hdr.dispose();
+    if (this._colorGrading) this._colorGrading.dispose();
     if (this._grain) this._grain.dispose();
     this._scene.dispose();
     this._camera.dispose();

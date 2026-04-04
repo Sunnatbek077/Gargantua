@@ -300,19 +300,16 @@ const PostFXConfig = {
   colorGrading: {
     enabled: true,
 
-    // INTERSTELLAR: biroz yuqoriroq kontrast
-    contrast: 1.15,
+    // Gentle S-curve — deepen without crushing
+    contrast: 1.06,
 
-    // INTERSTELLAR: desaturated — filmga xos "ranglar o'chirilgan" hissi
-    saturation: 0.75,
+    // Slight desaturation — filmic, not stylized
+    saturation: 0.92,
 
-    // INTERSTELLAR: iliqroq — oltin tonlar
-    temperature: 5200,
-
-    // INTERSTELLAR: ko'kish soyalar, oltin yorqin joylar
-    shadowTint:    [0.01, 0.01, 0.06],   // Sovuq ko'k soyalar
-    midtoneTint:   [0.0,  0.0,  0.0],    // Neytral
-    highlightTint: [0.05, 0.03, 0.0],    // Iliq oltin yorqinlik
+    // Subtle split toning — cool shadows, faintly warm highlights
+    shadowTint:    [0.003, 0.003, 0.012],
+    midtoneTint:   [0.0,   0.0,   0.0],
+    highlightTint: [0.012, 0.007, 0.0],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

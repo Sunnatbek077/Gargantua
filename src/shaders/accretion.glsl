@@ -940,6 +940,17 @@ vec2 computeDiskNoise(float r, float theta, float time, float outerR) {
   // Tashqi tolalar — multiplikativ (chegarada so'ndiradi)
   baseIntensity *= wisps;
 
+  // ── Broad density variation — breaks azimuthal uniformity ──
+  // Low radial freq (0.6) + moderate azimuthal freq (1.5) = large patches
+  // that vary density across the disk without adding new bands.
+  // Range 0.78-1.0: only dims slightly, never removes structure.
+  float densityVar = fbm3D(
+    vec3(r * 0.6, theta * 1.5, time * 0.03),
+    1, 2.0, 0.5
+  );
+  densityVar = 0.78 + 0.22 * (densityVar * 0.5 + 0.5);
+  baseIntensity *= densityVar;
+
   // Ichki korona — additiv (qo'shimcha yorqinlik)
   baseIntensity += corona * 0.15;
   baseIntensity = clamp(baseIntensity, 0.0, 1.0);
