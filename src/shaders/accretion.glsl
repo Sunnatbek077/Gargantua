@@ -900,26 +900,60 @@ vec3 hotStreakTint(vec3 baseColor, float hotness, float t) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 vec2 computeDiskNoise(float r, float theta, float time, float outerR) {
+
+  // ════════════════════════════════════════════
+  // DOMAIN WARP — break coordinate phase-locking
+  // ════════════════════════════════════════════
+  // Two-stage domain warp applied before ANY pattern sampling.
+  // All layers receive warped coordinates so they cannot form
+  // coherent periodic interference in top-down view.
+  //
+  // Stage 1: large-scale warp (Cartesian, low freq)
+  // Stage 2: medium-scale warp (feeds back into itself)
+  //
+  // Warp is primarily angular — radial structure stays physical.
+
+  float rNorm = r / u_diskOuterRadius;
+  vec2 xy = vec2(rNorm * cos(theta), rNorm * sin(theta));
+
+  // Stage 1: large slow warp field
+  float w1x = fbm3D(vec3(xy * 0.4, time * 0.012), 1, 2.0, 0.5);
+  float w1y = fbm3D(vec3(xy * 0.4 + 5.7, time * 0.012 + 3.1), 1, 2.0, 0.5);
+  vec2 xy1 = xy + vec2(w1x, w1y) * 0.15;
+
+  // Stage 2: medium warp on top of stage 1
+  float w2x = fbm3D(vec3(xy1 * 1.1 + 11.3, time * 0.018), 1, 2.0, 0.5);
+  float w2y = fbm3D(vec3(xy1 * 1.1 + 17.9, time * 0.018 + 7.7), 1, 2.0, 0.5);
+  vec2 xyW = xy1 + vec2(w2x, w2y) * 0.08;
+
+  // Convert back to polar — warped r and theta for pattern sampling
+  float wR = length(xyW) * u_diskOuterRadius;
+  float wTheta = atan(xyW.y, xyW.x);
+
+  // Keep wR close to physical r to preserve radial profile shape
+  // but allow subtle variation
+  wR = mix(r, wR, 0.4);
+
   // ── 1. Filament tuzilmasi (asosiy vizual element) ──
-  float filaments = combinedFilaments(r, theta, time);
+  float filaments = combinedFilaments(wR, wTheta, time);
 
   // ── 2. Halqa tuzilmasi ──
-  float rings = combinedRings(r, theta);
+  float rings = combinedRings(wR, wTheta);
 
   // ── 3. Spiral qo'llar ──
-  float spiral = spiralArms(r, theta, time);
+  float spiral = spiralArms(wR, wTheta, time);
 
   // ── 4. Issiq nuqtalar ──
-  float hotSpots = combinedHotSpots(r, theta, time);
+  float hotSpots = combinedHotSpots(wR, wTheta, time);
 
   // ── 5. Qorong'i yo'laklar ──
-  float darkLanes = combinedDarkLanes(r, theta, time);
+  float darkLanes = combinedDarkLanes(wR, wTheta, time);
 
-  // ── 6. Tashqi tolalar ──
-  float wisps = outerWisps(r, theta, time, outerR);
+  // ── 6. Tashqi tolalar (use physical r — radial fade is geometric) ──
+  float wisps = outerWisps(r, wTheta, time, outerR);
 
-  // ── 7. Ichki korona ──
-  float corona = combinedCorona(r, theta, time, u_diskInnerRadius);
+  // ── 7. Ichki korona (use physical r — ISCO proximity is geometric) ──
+  float corona = combinedCorona(r, wTheta, time, u_diskInnerRadius);
 
   // ════════════════════════════════════════════
   // BIRLASHTIRISH
@@ -940,22 +974,11 @@ vec2 computeDiskNoise(float r, float theta, float time, float outerR) {
   // Tashqi tolalar — multiplikativ (chegarada so'ndiradi)
   baseIntensity *= wisps;
 
-  // ── Broad density variation — breaks azimuthal uniformity ──
-  // Low radial freq (0.6) + moderate azimuthal freq (1.5) = large patches
-  // that vary density across the disk without adding new bands.
-  // Range 0.78-1.0: only dims slightly, never removes structure.
-  float densityVar = fbm3D(
-    vec3(r * 0.6, theta * 1.5, time * 0.03),
-    1, 2.0, 0.5
-  );
-  densityVar = 0.78 + 0.22 * (densityVar * 0.5 + 0.5);
-  baseIntensity *= densityVar;
-
   // Ichki korona — additiv (qo'shimcha yorqinlik)
   baseIntensity += corona * 0.15;
   baseIntensity = clamp(baseIntensity, 0.0, 1.0);
 
-  // Kontrast kuchaytirish — yumshoq (silliq disk uchun)
+  // Kontrast
   baseIntensity = smoothstep(0.12, 0.88, baseIntensity);
 
   // Issiqlik — filament va hotspot asosida
@@ -1045,8 +1068,7 @@ vec4 computeDiskColor(float hitR, vec3 hitPoint) {
   // YORQINLIK MODULYATSIYASI
   // ══════════════════════════════════════════
 
-  // Noise modulyatsiya — qorong'i bo'shliqlar 18% gacha tushadi
-  // Filamentlar ko'rinadigan, lekin zebra bo'lmaydigan balans
+  // Noise modulyatsiya
   float nFactor = 0.18 + intensity * 0.82;
 
   // Issiq tolalar — rang oqqa yaqinlashadi
