@@ -73,7 +73,7 @@ export default class BloomPass {
       uniforms: {
         tDiffuse: { value: null },
         u_threshold: { value: this._config.threshold },
-        u_softKnee: { value: 0.5 },
+        u_softKnee: { value: 0.7 },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;

@@ -148,10 +148,10 @@ export default class App {
     // ── Post-processing pipeline ──
     const nativeRenderer = this._renderer.native;
     this._bloom = new BloomPass(nativeRenderer, size.width, size.height);
-    this._bloom.setThreshold(0.8);   // HDR space: catch inner disk + hot spots
-    this._bloom.setIntensity(1.5);   // Controlled glow — ACES compresses peaks
+    this._bloom.setThreshold(0.4);   // Lower: more disk contributes, wider softer glow
+    this._bloom.setIntensity(1.0);   // Pulled back to avoid blowing out inner disk
     this._hdr = new HDRPipeline(nativeRenderer);
-    this._hdr.setExposure(1.8);      // Match previous hardcoded exposure
+    this._hdr.setExposure(1.4);      // Reduced: recover highlight detail in hot regions
     this._grain = new FilmGrain(nativeRenderer);
     this._lastRenderWidth = size.width;
     this._lastRenderHeight = size.height;

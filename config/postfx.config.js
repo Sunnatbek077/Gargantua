@@ -63,12 +63,12 @@ const PostFXConfig = {
     tint: [1.0, 0.88, 0.7],
 
     // Mip chain — turli o'lchamdagi blur
-    // Bu katta va kichik yorqinlik doiralarini beradi
+    // Favor wider mips: inner disk detail preserved, outer glow spreads
     mipLevels: [
-      { scale: 0.5,  weight: 1.0 },   // Yaqin glow
-      { scale: 0.25, weight: 1.0 },   // INTERSTELLAR: kuchliroq o'rta
-      { scale: 0.125, weight: 0.8 },  // Keng tarqalish
-      { scale: 0.0625, weight: 0.6 }, // Atmosfera — iliq halo
+      { scale: 0.5,  weight: 0.5 },   // Near glow — pulled back to preserve structure
+      { scale: 0.25, weight: 0.8 },   // Mid spread — primary cinematic glow
+      { scale: 0.125, weight: 1.0 },  // Wide spread — soft atmospheric bloom
+      { scale: 0.0625, weight: 0.7 }, // Atmosphere — warm distant halo
     ],
 
     // ── Formula #36: Luminance hisoblash ──
@@ -79,7 +79,7 @@ const PostFXConfig = {
     // Anamorfik bloom (filmga xos gorizontal cho'zilish)
     anamorphic: {
       enabled: true,
-      ratio: 3.0,            // INTERSTELLAR: kuchliroq gorizontal cho'zilish
+      ratio: 2.0,            // Moderate anamorphic stretch — cinematic without flattening
     },
   },
 

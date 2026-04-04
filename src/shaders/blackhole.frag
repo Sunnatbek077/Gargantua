@@ -266,6 +266,31 @@ RayResult marchRay(vec3 rayPos, vec3 rayDir) {
       break;
     }
 
+    // ── Equatorial haze — optically thin hot gas envelope ──
+    // Extends beyond the visible disk, accumulates over the full ray.
+    // Vertical: wide Gaussian (scale height ~3x disk thickness).
+    // Radial: peaks near disk outer edge, fades at large r.
+    {
+      float rXZh = length(rayPos.xz);
+      float hScale = max(rXZh * u_diskThickness * 3.0, 0.5);
+      float vertDensity = exp(-0.5 * (rayPos.y * rayPos.y) / (hScale * hScale));
+
+      // Radial envelope: gentle rise from inner, plateau at mid-disk, slow falloff past outer
+      float rNorm = rXZh / u_diskOuterRadius;
+      float radialDensity = smoothstep(0.3, 0.7, rNorm) * exp(-max(rNorm - 1.0, 0.0) * 1.2);
+
+      float hazeDensity = vertDensity * radialDensity;
+
+      // Per-step optical depth — extremely thin
+      float hazeTau = hazeDensity * stepSize * 0.0004;
+
+      // Warm emission color — faint thermal scatter from disk radiation
+      vec3 hazeEmission = vec3(0.012, 0.006, 0.002) * hazeDensity;
+
+      accumulatedDiskColor += hazeEmission * hazeTau * (1.0 - accumulatedDiskAlpha);
+      // No alpha contribution — optically thin, should not occlude background
+    }
+
     // ── Volumetrik Accretion Disk (accretion.glsl) ──
     float rXZ = length(rayPos.xz);
     if (rXZ >= u_diskInnerRadius && rXZ <= u_diskOuterRadius) {
