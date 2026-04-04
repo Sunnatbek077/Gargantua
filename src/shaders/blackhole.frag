@@ -125,36 +125,33 @@ varying vec2 vUv;
 // Ray marching'dan keyin escaped ray yo'nalishi bilan chaqiriladi.
 
 vec3 cinematicBackground(vec3 dir) {
-  // ── I. Vertical gradient — disk tekisligi yaqinida iliq, yuqorida sovuq ──
-  // abs(dir.y) = 0 disk tekisligida, 1 qutblarda
+  // ── I. Soft vertical gradient — extremely wide, no visible banding ──
   float vertFade = abs(dir.y);
 
-  // Sovuq: yuqori/pastda — juda xira ko'k-binafsha
-  vec3 coolDark = vec3(0.002, 0.0015, 0.005);
-  // Iliq: disk tekisligi yaqinida — disk nurlanishining sochilgan yorug'ligi
-  vec3 warmDark = vec3(0.005, 0.003, 0.001);
+  vec3 coolDark  = vec3(0.001, 0.0008, 0.0025);
+  vec3 warmDark  = vec3(0.0025, 0.0015, 0.0005);
 
-  // Asosiy gradient: disk tekisligiga yaqin = iliq, uzoq = sovuq
-  vec3 base = mix(warmDark, coolDark, smoothstep(0.0, 0.45, vertFade));
+  // Very wide smoothstep — gradient spans most of the hemisphere
+  vec3 base = mix(warmDark, coolDark, smoothstep(0.0, 0.85, vertFade));
 
-  // ── II. Ultra-past chastotali chang tuzilmasi ──
-  // Faqat 2 oktava, juda katta masshtab — procedural ko'rinmasin.
-  // Natija: keng, silliq yorqinlik variatsiyalari kosmik fonda.
-  float dust = fbm3D(dir * 0.8, 2, 2.0, 0.5);
-  // [-1,1] → [0,1] va keskin qoraytirish — faqat eng yorqin cho'qqilar qoladi
-  dust = dust * 0.5 + 0.5;
-  dust = dust * dust * dust;  // pow(3) — 90%+ piksellar deyarli nolga tushadi
+  // ── II. Ultra-low-frequency volumetric haze ──
+  // Scale 0.25 on unit sphere = continent-sized shapes, single octave only.
+  // Use a tilted sample to break any axis-alignment.
+  vec3 tiltedDir = vec3(
+    dir.x * 0.9 + dir.y * 0.3,
+    dir.y * 0.9 - dir.x * 0.2 + dir.z * 0.15,
+    dir.z * 0.95 + dir.x * 0.1
+  );
+  float haze = fbm3D(tiltedDir * 0.25, 1, 2.0, 0.5);
+  // [-1,1] → [0,1], then quartic crush — only the broadest peaks survive
+  haze = haze * 0.5 + 0.5;
+  haze = haze * haze * haze * haze;
 
-  // Changning rangi: biroz issiq, lekin juda xira
-  base += vec3(0.003, 0.002, 0.004) * dust;
+  base += vec3(0.001, 0.0007, 0.0015) * haze;
 
-  // ── III. Disk tekisligi yaqinidagi tarqalgan yorug'lik ──
-  // Accretion disk yorug'ligining kengaygan galosi — juda nozik
-  float diskScatter = exp(-vertFade * 6.0);
-  // Azimuthal variatsiya — har tomondan bir xil emas
-  float azimuth = atan(dir.z, dir.x);
-  float azVar = 0.85 + 0.15 * sin(azimuth * 2.0 + 0.7);
-  base += vec3(0.006, 0.003, 0.001) * diskScatter * azVar;
+  // ── III. Disk-plane scattered glow — very soft falloff ──
+  float diskScatter = exp(-vertFade * 3.5);
+  base += vec3(0.002, 0.001, 0.0004) * diskScatter;
 
   return base;
 }
